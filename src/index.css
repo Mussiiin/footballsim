@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-surface-950 text-slate-200 font-body antialiased;
+  background-image:
+    radial-gradient(1200px 600px at 80% -10%, rgba(61, 220, 132, 0.07), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(24, 120, 255, 0.06), transparent 60%);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a3a4d;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a5068;
+}
+
+@layer components {
+  .card {
+    @apply bg-surface-900/80 border border-surface-700/60 rounded-xl shadow-card;
+  }
+  .card-hover {
+    @apply transition-all duration-200 hover:border-accent/40 hover:shadow-glow;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed select-none;
+  }
+  .btn-primary {
+    @apply btn bg-accent text-surface-950 hover:bg-accent-400 active:scale-[0.98];
+  }
+  .btn-secondary {
+    @apply btn bg-surface-700 text-slate-100 hover:bg-surface-600 active:scale-[0.98];
+  }
+  .btn-ghost {
+    @apply btn bg-transparent text-slate-300 hover:bg-surface-700/60;
+  }
+  .btn-danger {
+    @apply btn bg-red-600/15 text-red-400 border border-red-600/30 hover:bg-red-600/25 active:scale-[0.98];
+  }
+  .btn-gold {
+    @apply btn bg-gold text-surface-950 hover:bg-gold-400 active:scale-[0.98];
+  }
+  .input {
+    @apply bg-surface-800 border border-surface-600 rounded-lg px-3 py-2 text-sm text-slate-100 placeholder-slate-500 outline-none focus:border-accent/60 focus:ring-2 focus:ring-accent/20 transition;
+  }
+  .label {
+    @apply block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold;
+  }
+  .table-th {
+    @apply text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 px-3 py-2.5 whitespace-nowrap;
+  }
+  .table-td {
+    @apply px-3 py-2.5 text-sm whitespace-nowrap;
+  }
+}
+
+.pitch-bg {
+  background:
+    linear-gradient(180deg, rgba(30, 66, 40, 0.55), rgba(10, 24, 16, 0.85)),
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 50px);
+}
+
+.text-gradient {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-accent via-accent-300 to-sky-400;
+}
