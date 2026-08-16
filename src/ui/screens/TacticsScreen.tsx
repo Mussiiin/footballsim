@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useGame } from '../../state/store';
-import { FORMATIONS, FORMATION_LIST, Position, Player, INDIVIDUAL_INSTRUCTIONS, IndividualInstruction, TeamStyle } from '../../lib/types';
+import { FORMATIONS, FORMATION_LIST, Position, Player, INDIVIDUAL_INSTRUCTIONS, IndividualInstruction, TeamStyle, FormationSlot } from '../../lib/types';
 import { PlayerAvatar, OverallBadge, Modal, EnergyBadge } from '../components';
 import { overallAt, overallOf } from '../../game/overall';
 import { playerName, positionFit, pickBestLineup } from '../../game/matchEngine';
@@ -21,6 +21,8 @@ const STYLE_ITEMS: { key: keyof TeamStyle; label: string; low: string; high: str
   { key: 'defensiveLine', label: 'Linha defensiva', low: 'Baixa', high: 'Alta' },
 ];
 
+const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
+
 export function TacticsScreen() {
   const { career, setLineup, navigate, goBack } = useGame();
   const [slotPick, setSlotPick] = useState<string | null>(null);
@@ -40,19 +42,76 @@ export function TacticsScreen() {
     return pid ? world.players[pid] : undefined;
   };
 
-  const assign = (slotId: string, playerId: string) => {
+  /**
+   * Coloca um jogador em uma vaga. Remove o jogador de qualquer vaga anterior
+   * (evita duplicação) e, se a vaga alvo estiver ocupada, troca os dois.
+   * `pos` (opcional) registra uma posição livre no campo (x,y em %).
+   */
+  const assign = (slotId: string, playerId: string, pos?: { x: number; y: number }) => {
     const slots = { ...lineup.slots };
-    // soltar sobre um slot ocupado troca os jogadores de posição
-    const other = slots[slotId];
-    if (other && other !== playerId) {
-      const otherSlot = Object.entries(slots).find(([, v]) => v === playerId)?.[0];
-      slots[slotId] = playerId;
-      if (otherSlot) slots[otherSlot] = other;
-    } else {
-      slots[slotId] = playerId;
+    const positions = { ...(lineup.positions ?? {}) };
+    const targetOccupant = slots[slotId];
+    if (targetOccupant === playerId) {
+      if (pos) {
+        positions[slotId] = pos;
+        setLineup({ ...lineup, slots, positions });
+      }
+      setSlotPick(null);
+      return;
     }
-    setLineup({ ...lineup, slots });
+    // remove o jogador do slot anterior (se houver)
+    const prevSlot = Object.entries(slots).find(([, v]) => v === playerId)?.[0];
+    if (prevSlot) {
+      delete slots[prevSlot];
+      delete positions[prevSlot];
+    }
+    slots[slotId] = playerId;
+    if (pos) positions[slotId] = pos;
+    else delete positions[slotId];
+    // quem ocupava o alvo vai para a vaga deixada pelo jogador (troca), senão vai ao banco
+    if (targetOccupant && prevSlot && targetOccupant !== playerId) {
+      slots[prevSlot] = targetOccupant;
+    }
+    setLineup({ ...lineup, slots, positions });
     setSlotPick(null);
+  };
+
+  /** melhor vaga para um ponto (x,y) do campo: prefere vaga vazia e compatível com a posição do jogador */
+  const nearestSlotFor = (x: number, y: number, player?: Player): FormationSlot | null => {
+    let best: FormationSlot | null = null;
+    let bestScore = -Infinity;
+    for (const slot of formation) {
+      const dist = Math.hypot(slot.x - x, slot.y - y);
+      const occupant = lineup.slots[slot.id];
+      if (occupant === player?.id) continue;
+      const compat = player
+        ? (player.position === slot.position ? 0 : player.secondaryPositions.includes(slot.position) ? 1 : 3)
+        : 1;
+      // vazia muito mais atraente; compatibilidade pesa; proximidade desempata
+      const score = -dist - compat * 12 - (occupant ? 80 : 0);
+      if (score > bestScore) { bestScore = score; best = slot; }
+    }
+    return best;
+  };
+
+  /** solta o jogador em uma área do campo: converte o ponto em % e escolhe a vaga mais adequada */
+  const placeOnPitch = (e: React.DragEvent<HTMLDivElement>, playerId: string) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = clamp(((e.clientX - rect.left) / rect.width) * 100, 3, 97);
+    const y = clamp(((e.clientY - rect.top) / rect.height) * 100, 3, 97);
+    const p = world.players[playerId];
+    const slot = nearestSlotFor(x, y, p);
+    if (!slot) return;
+    assign(slot.id, playerId, { x, y });
+  };
+
+  /** vaga alvo para o destaque visual durante o arrasto */
+  const highlightTarget = (e: React.DragEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = clamp(((e.clientX - rect.left) / rect.width) * 100, 3, 97);
+    const y = clamp(((e.clientY - rect.top) / rect.height) * 100, 3, 97);
+    const p = dragId ? world.players[dragId] : undefined;
+    setDropTarget(nearestSlotFor(x, y, p)?.id ?? null);
   };
 
   const fitInfo = (p: Player | undefined, slotPos: Position) => {
@@ -70,7 +129,11 @@ export function TacticsScreen() {
     const slots: Record<string, string> = {};
     const ids = [...best.playerIds];
     FORMATIONS[lineup.formation].forEach((s, i) => { if (ids[i]) slots[s.id] = ids[i]; });
-    setLineup({ ...lineup, slots });
+    setLineup({ ...lineup, slots, positions: {} });
+  };
+
+  const resetPositions = () => {
+    setLineup({ ...lineup, positions: {} });
   };
 
   const changeFormation = (f: string) => {
@@ -108,7 +171,7 @@ export function TacticsScreen() {
         used.add(best);
       }
     }
-    setLineup({ ...lineup, formation: f, slots });
+    setLineup({ ...lineup, formation: f, slots, positions: {} });
     setBusy(false);
   };
 
@@ -126,6 +189,9 @@ export function TacticsScreen() {
 
   const starters = formation.map((s) => slotPlayer(s.id)).filter(Boolean);
   const teamOv = starters.length > 0 ? Math.round(starters.reduce((s, p) => s + overallOf(p!), 0) / starters.length) : 0;
+  const freePositions = Object.keys(lineup.positions ?? {}).length;
+  // só reservas aparecem na lista arrastável — titulares já estão no campo (evita impressão de duplicado)
+  const benchPlayers = squad.filter((p) => !filled.has(p.id));
 
   return (
     <div className="space-y-4 animate-fadeUp">
@@ -137,6 +203,9 @@ export function TacticsScreen() {
         </div>
         <div className="flex-1" />
         <div className="flex gap-1.5 flex-wrap">
+          <button onClick={resetPositions} disabled={freePositions === 0} className="btn-ghost !px-3 text-xs" title="Volta os jogadores às posições da formação">
+            🎯 Posições padrão{freePositions > 0 ? ` (${freePositions})` : ''}
+          </button>
           <button onClick={restore} className="btn-ghost !px-3 text-xs" title="Escala os melhores jogadores disponíveis na formação atual">↩ Restaurar</button>
           {FORMATION_LIST.map((f) => (
             <button key={f} onClick={() => changeFormation(f)} disabled={busy} className={`badge border px-3 py-1.5 ${lineup.formation === f ? 'bg-accent text-surface-950 border-accent' : 'bg-surface-800 text-slate-300 border-surface-600 hover:border-surface-500'}`}>
@@ -150,7 +219,18 @@ export function TacticsScreen() {
         {/* quadro tático */}
         <div className="lg:col-span-3">
           <div className="card p-4">
-            <div className="pitch-bg rounded-xl border border-surface-700 relative aspect-[3/4] sm:aspect-[16/10] overflow-hidden">
+            <div
+              className="pitch-bg rounded-xl border border-surface-700 relative aspect-[3/4] sm:aspect-[16/10] overflow-hidden"
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; highlightTarget(e); }}
+              onDragLeave={() => setDropTarget(null)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDropTarget(null);
+                const pid = e.dataTransfer.getData('text/plain') || dragId;
+                if (pid && world.players[pid]) placeOnPitch(e, pid);
+                setDragId(null);
+              }}
+            >
               {/* linhas do campo */}
               <div className="absolute inset-4 border border-white/15 rounded-lg" />
               <div className="absolute left-4 right-4 top-1/2 border-t border-white/15" />
@@ -163,21 +243,21 @@ export function TacticsScreen() {
                 const p = slotPlayer(slot.id);
                 const fit = fitInfo(p, slot.position);
                 const effOv = p ? overallAt(p, slot.position) : 0;
+                const pos = (lineup.positions ?? {})[slot.id] ?? { x: slot.x, y: slot.y };
                 return (
                   <button
                     key={slot.id}
                     onClick={() => setSlotPick(slot.id)}
-                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDropTarget(slot.id); }}
-                    onDragLeave={() => setDropTarget((d) => (d === slot.id ? null : d))}
                     onDrop={(e) => {
                       e.preventDefault();
+                      e.stopPropagation();
                       setDropTarget(null);
                       const pid = e.dataTransfer.getData('text/plain') || dragId;
                       if (pid && world.players[pid]) assign(slot.id, pid);
                       setDragId(null);
                     }}
                     className={`absolute -translate-x-1/2 -translate-y-1/2 group ${dropTarget === slot.id ? 'ring-2 ring-accent rounded-full' : ''}`}
-                    style={{ left: `${slot.x}%`, top: `${slot.y}%` }}
+                    style={{ left: `${pos.x}%`, top: `${pos.y}%` }}
                     title={p ? `${p.firstName} ${p.lastName} — ${POSITION_LABELS[p.position]}` : `Vaga ${slot.label} — solte um jogador aqui`}
                   >
                     {p ? (
@@ -212,34 +292,32 @@ export function TacticsScreen() {
                 );
               })}
             </div>
+            <p className="text-[10px] text-slate-600 mt-2">Arraste um jogador para uma área livre do campo — ele assume a vaga mais próxima e a posição fica salva. Solte sobre um jogador para trocar.</p>
           </div>
         </div>
 
         {/* elenco arrastável e estilo */}
         <div className="lg:col-span-2 space-y-5">
           <div className="card p-5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Elenco — arraste para o campo</p>
-            <p className="text-[10px] text-slate-600 mb-3">Solte sobre um jogador para trocar de posição · clique na vaga para escolher</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Reservas — arraste para o campo</p>
+            <p className="text-[10px] text-slate-600 mb-3">{starters.length} titulares no campo · solte um reserva sobre um titular para trocar · clique na vaga para escolher</p>
             <div className="flex flex-wrap gap-1.5 max-h-44 overflow-y-auto">
-              {squad.map((p) => {
-                const inLineup = filled.has(p.id);
-                return (
-                  <div
-                    key={p.id}
-                    draggable={!p.injury && p.suspension <= 0}
-                    onDragStart={(e) => { e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; setDragId(p.id); }}
-                    onDragEnd={() => setDragId(null)}
-                    title={p.injury ? 'Lesionado — não pode ser escalado' : `${p.firstName} ${p.lastName} · ${POSITION_LABELS[p.position]}`}
-                    className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs cursor-grab active:cursor-grabbing transition ${inLineup ? 'border-surface-700 bg-surface-800/40 opacity-60' : dragId === p.id ? 'border-accent bg-accent/10' : 'border-surface-600 bg-surface-800 hover:border-surface-500'}`}
-                  >
-                    <PlayerAvatar player={p} size={22} showPos={false} />
-                    <span className="font-semibold text-slate-300">{p.lastName.slice(0, 14)}</span>
-                    <span className="text-[9px] text-slate-500">{POSITION_LABELS[p.position]}</span>
-                    <OverallBadge player={p} size="sm" />
-                    {p.injury && <span className="text-xs">🩹</span>}
-                  </div>
-                );
-              })}
+              {benchPlayers.map((p) => (
+                <div
+                  key={p.id}
+                  draggable={!p.injury && p.suspension <= 0}
+                  onDragStart={(e) => { e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; setDragId(p.id); }}
+                  onDragEnd={() => setDragId(null)}
+                  title={p.injury ? 'Lesionado — não pode ser escalado' : `${p.firstName} ${p.lastName} · ${POSITION_LABELS[p.position]}`}
+                  className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs cursor-grab active:cursor-grabbing transition ${dragId === p.id ? 'border-accent bg-accent/10' : 'border-surface-600 bg-surface-800 hover:border-surface-500'}`}
+                >
+                  <PlayerAvatar player={p} size={22} showPos={false} />
+                  <span className="font-semibold text-slate-300">{p.lastName.slice(0, 14)}</span>
+                  <span className="text-[9px] text-slate-500">{POSITION_LABELS[p.position]}</span>
+                  <OverallBadge player={p} size="sm" />
+                  {p.injury && <span className="text-xs">🩹</span>}
+                </div>
+              ))}
             </div>
           </div>
 

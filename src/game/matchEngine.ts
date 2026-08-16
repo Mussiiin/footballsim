@@ -1067,6 +1067,8 @@ function applyMatchToWorld(
   awayLineup: LineupChoice,
   opts: SimOptions,
 ): void {
+  // idempotência: nunca aplica duas vezes o mesmo resultado (evita J/forma/estatísticas duplicadas)
+  if (match.played) return;
   match.played = true;
   match.homeScore = result.homeScore;
   match.awayScore = result.awayScore;
@@ -1213,8 +1215,13 @@ function applyMatchToWorld(
 }
 
 export function applyLeagueStandings(comp: { standings: { clubId: string; played: number; won: number; drawn: number; lost: number; gf: number; ga: number; gd: number; points: number; form: ('W' | 'D' | 'L')[] }[] }, match: Match, homeWon: boolean, draw: boolean): void {
-  const home = comp.standings.find((s) => s.clubId === match.homeId);
-  const away = comp.standings.find((s) => s.clubId === match.awayId);
+  let home = comp.standings.find((s) => s.clubId === match.homeId);
+  let away = comp.standings.find((s) => s.clubId === match.awayId);
+  // defensivo: se a tabela estiver sem a entrada do clube (save antigo/corrompido),
+  // cria a linha em vez de ignorar silenciosamente o resultado
+  const mk = (clubId: string) => ({ clubId, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, gd: 0, points: 0, form: [] as ('W' | 'D' | 'L')[] });
+  if (!home) { home = mk(match.homeId); comp.standings.push(home); }
+  if (!away) { away = mk(match.awayId); comp.standings.push(away); }
   if (!home || !away) return;
   const hs = match.homeScore ?? 0;
   const as = match.awayScore ?? 0;

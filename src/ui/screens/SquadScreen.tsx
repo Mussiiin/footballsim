@@ -129,7 +129,7 @@ export function SquadScreen() {
                   <span className="text-sm">{p.morale >= 75 ? '😄' : p.morale >= 55 ? '🙂' : p.morale >= 35 ? '😐' : '😠'}</span>
                 </td>
                 <td className="table-td text-center">
-                  <span className={`font-mono text-xs font-bold ${p.condition >= 70 ? 'text-accent' : p.condition >= 45 ? 'text-gold' : 'text-red-400'}`}>{p.condition}%</span>
+                  <span className={`font-mono text-xs font-bold ${p.condition >= 70 ? 'text-accent' : p.condition >= 45 ? 'text-gold' : 'text-red-400'}`}>{p.condition.toFixed(1)}%</span>
                 </td>
               </tr>
             ))}

@@ -879,6 +879,8 @@ export interface TeamSetup {
   instructions: Record<string, IndividualInstruction>; // playerId -> instrução
   captainId: string | null;
   setPieceTaker: string | null;
+  /** posições livres (x,y em % do campo) por slotId — quando o jogador é solto em área do campo */
+  positions?: Record<string, { x: number; y: number }>;
 }
 
 // ------------------------------------------------------------

@@ -312,6 +312,8 @@ function setupNewSeason(world: World): void {
   // recalcula folha salarial de todos os clubes após o reset (salários e elencos mudaram)
   for (const club of Object.values(world.clubs)) {
     refreshClubCaches(club, squadOf(world, club.id));
+    // forma dos clubes começa zerada na nova temporada (não herda resultados antigos)
+    club.lastResults = [];
   }
 
   // atualiza clubes: ligas após promoção/rebaixamento

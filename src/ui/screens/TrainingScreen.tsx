@@ -148,7 +148,7 @@ export function TrainingScreen() {
               <PlayerAvatar player={p} size={28} showPos={false} />
               <span className="w-36 text-sm text-slate-300 truncate">{p.firstName} {p.lastName}</span>
               <Bar value={p.condition} className="flex-1" />
-              <span className={`w-10 text-right font-mono text-xs ${p.condition >= 70 ? 'text-accent' : p.condition >= 45 ? 'text-gold' : 'text-red-400'}`}>{p.condition}%</span>
+              <span className={`w-10 text-right font-mono text-xs ${p.condition >= 70 ? 'text-accent' : p.condition >= 45 ? 'text-gold' : 'text-red-400'}`}>{p.condition.toFixed(1)}%</span>
             </div>
           ))}
         </div>

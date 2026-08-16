@@ -99,7 +99,7 @@ export function PlayerScreen({ playerId }: { playerId: string }) {
                 <Bar value={p.morale} />
               </div>
               <div>
-                <div className="flex justify-between mb-1"><span className="text-slate-400">Condição física</span><span className={`font-mono font-bold ${p.condition >= 70 ? 'text-accent' : 'text-gold'}`}>{p.condition}%</span></div>
+                <div className="flex justify-between mb-1"><span className="text-slate-400">Condição física</span><span className={`font-mono font-bold ${p.condition >= 70 ? 'text-accent' : 'text-gold'}`}>{p.condition.toFixed(1)}%</span></div>
                 <Bar value={p.condition} />
               </div>
               <div>
