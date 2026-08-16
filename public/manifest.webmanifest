@@ -1,7 +1,7 @@
 {
-  "name": "FootballSim",
+  "name": "FootballSim — Simulador de Futebol",
   "short_name": "FootballSim",
-  "description": "Comande seu clube, monte o elenco, defina a tática e escreva sua história no futebol.",
+  "description": "Comande seu clube, monte o elenco, negocie contratações, defina a tática e escreva sua história no futebol. Cada partida, cada transferência e cada temporada importa.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
