@@ -50,6 +50,7 @@ export function HomeScreen() {
           <div className="grid grid-cols-2 gap-3">
             <button onClick={() => navigate('settings')} className="btn-ghost py-3">⚙️ Configurações</button>
             <button onClick={() => navigate('about')} className="btn-ghost py-3">ℹ️ Sobre</button>
+            <button onClick={() => navigate('auth')} className="btn-ghost py-3">👤 Minha conta</button>
           </div>
         </div>
 

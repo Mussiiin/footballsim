@@ -5,7 +5,7 @@ import { isSupabaseConfigured } from '../../lib/supabase';
 type Mode = 'login' | 'signup' | 'recover';
 
 export function AuthScreen() {
-  const { login, register, forgotPassword } = useGame();
+  const { login, register, forgotPassword, navigate, user } = useGame();
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -44,6 +44,12 @@ export function AuthScreen() {
         <div className="absolute top-1/4 left-1/3 w-[400px] h-[400px] rounded-full bg-accent/10 blur-[120px]" />
       </div>
       <div className="relative w-full max-w-md animate-fadeUp">
+        <div className="flex items-center justify-between mb-6">
+          {user && (
+            <button onClick={() => navigate('home')} className="btn-ghost !px-2 !py-1 text-xs">← Voltar</button>
+          )}
+          <div className="flex-1" />
+        </div>
         <div className="flex items-center justify-center gap-2 mb-6">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-accent to-sky-500 flex items-center justify-center font-display font-extrabold text-surface-950">FS</div>
           <span className="font-display font-bold text-xl text-slate-100">FootballSim</span>

@@ -15,6 +15,17 @@ export function CalendarScreen() {
 
   const matches = useMemo(() => (clubId ? allMatchesForClub(world, clubId).reverse() : []), [world, clubId]);
 
+  // partidas da temporada atual, da 1ª à última rodada (ordem cronológica)
+  const seasonYear = Number(world.season.slice(0, 4));
+  const seasonMatches = useMemo(() => {
+    if (!clubId) return [];
+    return allMatchesForClub(world, clubId)
+      .filter((m) => m.date.startsWith(String(seasonYear)))
+      .sort((a, b) => (a.date < b.date ? -1 : 1));
+  }, [world, clubId, seasonYear]);
+  const [seasonFilter, setSeasonFilter] = useState<'all' | 'played' | 'remaining'>('all');
+  const shownSeason = seasonFilter === 'played' ? seasonMatches.filter((m) => m.played) : seasonFilter === 'remaining' ? seasonMatches.filter((m) => !m.played) : seasonMatches;
+
   const clubMatchesByDate = useMemo(() => {
     const map = new Map<string, Match[]>();
     for (const m of matches) {
@@ -93,7 +104,7 @@ export function CalendarScreen() {
                     return (
                       <button key={m.id} onClick={() => { if (m.played) navigate('competitions'); }} className="flex items-center gap-2 w-full text-left py-1">
                         <span className={`text-[10px] font-semibold w-14 truncate ${m.played ? 'text-slate-600' : 'text-accent'}`}>{m.played ? 'Jogada' : comp?.shortName ?? ''}</span>
-                        <span className={`flex-1 truncate text-sm ${isHome ? 'text-slate-200' : 'text-slate-400'}`}>{isHome ? home?.name : away?.name}</span>
+                        <span className={`flex-1 truncate text-sm ${isHome ? 'text-slate-200' : 'text-slate-400'}`}>{isHome ? away?.name : home?.name}</span>
                         <span className="text-xs text-slate-500">{isHome ? '🏠' : '✈️'}</span>
                         <ResultPill m={m} />
                       </button>
@@ -116,7 +127,7 @@ export function CalendarScreen() {
               return (
                 <div key={m.id} className="flex items-center gap-2 rounded-lg border border-surface-700/50 bg-surface-800/30 p-2.5 text-sm">
                   <span className="text-[10px] text-slate-600 w-16 shrink-0">{formatDateBR(m.date)}</span>
-                  <span className={`flex-1 truncate ${isHome ? 'text-slate-200' : 'text-slate-400'}`}>{isHome ? home?.name : away?.name}</span>
+                  <span className={`flex-1 truncate ${isHome ? 'text-slate-200' : 'text-slate-400'}`}>{isHome ? away?.name : home?.name}</span>
                   <ResultPill m={m} />
                 </div>
               );
@@ -125,45 +136,63 @@ export function CalendarScreen() {
         </div>
       </div>
 
-      {/* todas as partidas da temporada */}
+      {/* partidas da temporada: da 1ª rodada à última */}
       <div className="card p-5">
-        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Todas as partidas da temporada</p>
+        <div className="flex flex-wrap items-center gap-3 mb-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Partidas da temporada</p>
+          <div className="flex-1" />
+          <div className="flex gap-1">
+            <button onClick={() => setSeasonFilter('all')} className={`badge border px-3 py-1.5 ${seasonFilter === 'all' ? 'bg-accent text-surface-950 border-accent' : 'bg-surface-800 text-slate-300 border-surface-600'}`}>Todas ({seasonMatches.length})</button>
+            <button onClick={() => setSeasonFilter('played')} className={`badge border px-3 py-1.5 ${seasonFilter === 'played' ? 'bg-accent text-surface-950 border-accent' : 'bg-surface-800 text-slate-300 border-surface-600'}`}>✓ Jogadas ({seasonMatches.filter((m) => m.played).length})</button>
+            <button onClick={() => setSeasonFilter('remaining')} className={`badge border px-3 py-1.5 ${seasonFilter === 'remaining' ? 'bg-accent text-surface-950 border-accent' : 'bg-surface-800 text-slate-300 border-surface-600'}`}>⏳ Restantes ({seasonMatches.filter((m) => !m.played).length})</button>
+          </div>
+        </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[600px]">
+          <table className="w-full min-w-[640px]">
             <thead>
               <tr>
+                <th className="table-th">Rodada</th>
                 <th className="table-th">Data</th>
                 <th className="table-th">Competição</th>
-                <th className="table-th">Rodada</th>
                 <th className="table-th">Casa</th>
                 <th className="table-th text-center">Placar</th>
                 <th className="table-th">Fora</th>
               </tr>
             </thead>
             <tbody>
-              {matches.slice(0, 40).map((m) => (
-                <tr key={m.id} className="border-t border-surface-700/40">
-                  <td className="table-td text-slate-500">{formatDateBR(m.date)}</td>
-                  <td className="table-td text-xs text-slate-400">{world.competitions[m.competitionId]?.name ?? '—'}</td>
-                  <td className="table-td text-slate-500">{world.competitions[m.competitionId]?.type === 'league' ? `R${m.round}` : '—'}</td>
-                  <td className="table-td">
-                    <div className="flex items-center gap-1.5">
-                      <ClubCrest club={world.clubs[m.homeId]} size={20} />
-                      <span className={m.homeId === clubId ? 'font-semibold text-accent' : 'text-slate-300'}>{world.clubs[m.homeId]?.shortName}</span>
-                    </div>
-                  </td>
-                  <td className="table-td text-center"><ResultPill m={m} /></td>
-                  <td className="table-td">
-                    <div className="flex items-center gap-1.5 justify-end">
-                      <span className={m.awayId === clubId ? 'font-semibold text-accent' : 'text-slate-300'}>{world.clubs[m.awayId]?.shortName}</span>
-                      <ClubCrest club={world.clubs[m.awayId]} size={20} />
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {shownSeason.length === 0 && (
+                <tr><td colSpan={6} className="table-td text-center text-slate-500 py-6">Nenhuma partida neste filtro.</td></tr>
+              )}
+              {shownSeason.map((m) => {
+                const comp = world.competitions[m.competitionId];
+                const isLeague = comp?.type === 'league';
+                return (
+                  <tr key={m.id} className={`border-t border-surface-700/40 ${m.homeId === clubId || m.awayId === clubId ? 'bg-accent/[0.03]' : ''}`}>
+                    <td className="table-td font-mono text-slate-500">{isLeague ? `R${m.round}` : '—'}</td>
+                    <td className="table-td text-slate-500">{formatDateBR(m.date)}</td>
+                    <td className="table-td text-xs text-slate-400">{comp?.name ?? '—'}</td>
+                    <td className="table-td">
+                      <div className="flex items-center gap-1.5">
+                        <ClubCrest club={world.clubs[m.homeId]} size={20} />
+                        <span className={m.homeId === clubId ? 'font-semibold text-accent' : 'text-slate-300'}>{world.clubs[m.homeId]?.shortName}</span>
+                        {m.homeId === clubId && <span className="text-[9px] text-slate-500">🏠</span>}
+                      </div>
+                    </td>
+                    <td className="table-td text-center"><ResultPill m={m} /></td>
+                    <td className="table-td">
+                      <div className="flex items-center gap-1.5 justify-end">
+                        {m.awayId === clubId && <span className="text-[9px] text-slate-500">✈️</span>}
+                        <span className={m.awayId === clubId ? 'font-semibold text-accent' : 'text-slate-300'}>{world.clubs[m.awayId]?.shortName}</span>
+                        <ClubCrest club={world.clubs[m.awayId]} size={20} />
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
+        <p className="text-[10px] text-slate-600 mt-3">{seasonMatches.filter((m) => m.played).length} jogadas · {seasonMatches.filter((m) => !m.played).length} restantes na temporada {world.season}</p>
       </div>
     </div>
   );

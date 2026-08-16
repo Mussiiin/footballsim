@@ -95,15 +95,17 @@ export function LiveMatchScreen() {
       shots: [0, 0] as [number, number], sot: [0, 0] as [number, number], corners: [0, 0] as [number, number],
       fouls: [0, 0] as [number, number], yellows: [0, 0] as [number, number], reds: [0, 0] as [number, number],
       offsides: [0, 0] as [number, number], saves: [0, 0] as [number, number], goals: [0, 0] as [number, number],
-      attack: [0, 0] as [number, number],
+      attack: [0, 0] as [number, number], xg: [0, 0] as [number, number],
     };
     for (const e of evs) {
       if (limit > 0 && e.minute >= limit) continue;
       const i = e.team === 'home' ? 0 : 1;
       const j = i === 0 ? 1 : 0;
-      if (e.type === 'goal' || e.type === 'penalty') { c.goals[i]++; c.attack[i] += 3; }
-      else if (e.type === 'shotOnTarget') { c.sot[i]++; c.shots[i]++; c.attack[i] += 2; }
-      else if (e.type === 'shot') { c.shots[i]++; c.attack[i] += 1; }
+      // cada gol É uma finalização no alvo — a estatística nunca fica menor
+      // que o placar, e o xG é construído das chances reais já reveladas.
+      if (e.type === 'goal' || e.type === 'penalty') { c.goals[i]++; c.shots[i]++; c.sot[i]++; c.xg[i] += 0.45; c.attack[i] += 3; }
+      else if (e.type === 'shotOnTarget') { c.sot[i]++; c.shots[i]++; c.xg[i] += 0.32; c.attack[i] += 2; }
+      else if (e.type === 'shot') { c.shots[i]++; c.xg[i] += 0.06; c.attack[i] += 1; }
       else if (e.type === 'corner') { c.corners[i]++; c.attack[i] += 1; }
       else if (e.type === 'foul') c.fouls[i]++;
       else if (e.type === 'yellow') c.yellows[i]++;
@@ -125,8 +127,10 @@ export function LiveMatchScreen() {
 
   const liveHomeG = finished ? homeScore : c.goals[0];
   const liveAwayG = finished ? awayScore : c.goals[1];
-  const xgHome = stats ? Math.round(stats.xg[0] * (elapsed / 90) * 10) / 10 : 0;
-  const xgAway = stats ? Math.round(stats.xg[1] * (elapsed / 90) * 10) / 10 : 0;
+  // xG ao vivo: acumulado das chances reais reveladas (nunca uma projeção
+  // pré-carregada). Ao fim da partida converge para o xG final do motor.
+  const xgHome = Math.round(c.xg[0] * 10) / 10;
+  const xgAway = Math.round(c.xg[1] * 10) / 10;
   const passHomeFin = stats ? Math.round(stats.passes[0] * (elapsed / 90)) : 0;
   const passAwayFin = stats ? Math.round(stats.passes[1] * (elapsed / 90)) : 0;
   const statRows = stats ? [

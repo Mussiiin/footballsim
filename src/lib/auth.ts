@@ -60,8 +60,10 @@ export async function signIn(email: string, password: string): Promise<{ user: U
       error: null,
     };
   }
-  // Modo demo: qualquer credencial aceita
+  // Modo demo: qualquer credencial aceita; guarda o e-mail no usuário local
   const user = await ensureDemoUser();
+  if (email) user.email = email;
+  localStorage.setItem(DEMO_USER_KEY, JSON.stringify(user));
   return { user, error: null };
 }
 
@@ -83,7 +85,11 @@ export async function signUp(email: string, password: string, name: string): Pro
       error: null,
     };
   }
+  // Modo demo: a “conta” fica salva localmente neste navegador
   const user = await ensureDemoUser();
+  user.name = name || user.name;
+  user.email = email || user.email;
+  localStorage.setItem(DEMO_USER_KEY, JSON.stringify(user));
   return { user, error: null };
 }
 

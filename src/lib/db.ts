@@ -190,8 +190,10 @@ export const localDB = {
     return row?.data ?? null;
   },
   async listCareers(userId: string): Promise<CareerRow[]> {
-    const all = await txAll<CareerRow>('careers', 'readonly', (s) => [s.getAll()]);
-    return all.filter((r) => r && r.userId === userId).sort((a, b) => (b.updatedAt < a.updatedAt ? -1 : 1));
+    // txAll resolve com um array de resultados — getAll() retorna uma lista, então vem [rows]
+    const all = await txAll<CareerRow[]>('careers', 'readonly', (s) => [s.getAll()]);
+    const rows: CareerRow[] = all[0] ?? [];
+    return rows.filter((r) => r && r.userId === userId).sort((a, b) => (b.updatedAt < a.updatedAt ? -1 : 1));
   },
   async deleteCareer(id: string): Promise<void> {
     await tx('careers', 'readwrite', (s) => s.delete(id));

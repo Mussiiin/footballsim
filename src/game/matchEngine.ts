@@ -317,8 +317,8 @@ export function simulateMatch(world: World, match: Match, opts: SimOptions = {})
   const awayPower = computeTeamPower(world, match.awayId, awayLineup, 'away', opts);
 
   const diff = homePower.strength - awayPower.strength;
-  let homeEG = 1.45 + diff * 0.115;
-  let awayEG = 1.15 - diff * 0.115;
+  let homeEG = 1.42 + diff * 0.085;
+  let awayEG = 1.15 - diff * 0.085;
 
   // clima
   const weather = match.weather;
@@ -339,8 +339,8 @@ export function simulateMatch(world: World, match: Match, opts: SimOptions = {})
   homeEG *= possession / 50;
   awayEG *= (100 - possession) / 50;
 
-  homeEG = clamp(homeEG, 0.15, 4.5);
-  awayEG = clamp(awayEG, 0.15, 4.5);
+  homeEG = clamp(homeEG, 0.18, 3.4);
+  awayEG = clamp(awayEG, 0.18, 3.4);
 
   // ------------------------------------------------------------
   // Simulação minuto a minuto (lance a lance quando rastreado)
@@ -487,13 +487,27 @@ export function simulateMatch(world: World, match: Match, opts: SimOptions = {})
   const ph = homeEG / totalMinutes;
   const pa = awayEG / totalMinutes;
 
+  /** Momentum realista: o placar influencia a intensidade. Quem está muito à
+   *  frente joga com mais calma (controla menos chances); quem está atrás
+   *  pressiona mais no fim. Evita goleadas artificiais entre times do mesmo nível. */
+  const momentum = (min: number, diff: number): number => {
+    if (diff >= 3) return min >= 30 ? 0.7 : 0.9;
+    if (diff >= 2) return min >= 55 ? 0.84 : 1;
+    if (diff <= -3) return min >= 55 ? 1.3 : 1;
+    if (diff <= -2) return min >= 70 ? 1.32 : 1;
+    return 1;
+  };
+
   for (let min = 1; min <= totalMinutes; min++) {
     // energia cai a cada minuto (a intensidade do estilo acelera o desgaste)
     for (const [id, s] of homeStamina) homeStamina.set(id, s - (0.5 + homeIntensity * 0.007) * (0.8 + rng.next() * 0.5));
     for (const [id, s] of awayStamina) awayStamina.set(id, s - (0.5 + awayIntensity * 0.007) * (0.8 + rng.next() * 0.5));
 
+    const homeMom = momentum(min, homeGoals - awayGoals);
+    const awayMom = momentum(min, awayGoals - homeGoals);
+
     // ----- ataque da casa -----
-    if (rng.chance(ph)) {
+    if (rng.chance(ph * homeMom)) {
       homeGoals++;
       goalMinutesHome.push(min);
       shotHome++; sotHome++;
@@ -521,7 +535,7 @@ export function simulateMatch(world: World, match: Match, opts: SimOptions = {})
       }
     }
     // ----- ataque do visitante -----
-    if (rng.chance(pa)) {
+    if (rng.chance(pa * awayMom)) {
       awayGoals++;
       goalMinutesAway.push(min);
       shotAway++; sotAway++;
@@ -666,6 +680,12 @@ export function simulateMatch(world: World, match: Match, opts: SimOptions = {})
   shotAway += Math.round(rng.gaussian(2.5, 1.5));
   passHome = Math.round(passHome * 8 + possession * 6);
   passAway = Math.round(passAway * 8 + (100 - possession) * 6);
+
+  // xG coerente com as chances reais criadas (finalização no alvo ≈ 0.32,
+  // fora ≈ 0.06, gol ≈ 0.45). Assim o xG exibido nunca contradiz o placar
+  // nem as finalizações — um time que marca 4 tem xG alto de verdade.
+  const xgHomeFinal = Math.round((sotHome * 0.32 + (shotHome - sotHome) * 0.06 + homeGoals * 0.13) * 10) / 10;
+  const xgAwayFinal = Math.round((sotAway * 0.32 + (shotAway - sotAway) * 0.06 + awayGoals * 0.13) * 10) / 10;
 
   // ------------------------------------------------------------
   // Prorrogação / pênaltis (copas)
@@ -879,7 +899,7 @@ export function simulateMatch(world: World, match: Match, opts: SimOptions = {})
     const interDist = distribute(Math.max(2, Math.round(tacklesTeam * 0.35)), interW.map((w) => w + 0.01));
 
     // xG/xA individuais derivados das estatísticas reais da partida
-    const teamXG = side === 'home' ? homeEG : awayEG;
+    const teamXG = side === 'home' ? xgHomeFinal : xgAwayFinal;
     const totalShots = Math.max(1, shotsDist.reduce((a, b) => a + b, 0));
     const totalKP = Math.max(1, passesDist.reduce((a, b) => a + b, 0) * 0.05);
 
@@ -1018,10 +1038,7 @@ export function simulateMatch(world: World, match: Match, opts: SimOptions = {})
     offsides: [offHome, offAway],
     tackles: [tackleHome, tackleAway],
     saves: [saveHome, saveAway],
-    xg: [
-      Math.round(homeEG * 10) / 10,
-      Math.round(awayEG * 10) / 10,
-    ],
+    xg: [xgHomeFinal, xgAwayFinal],
     attendance: 0,
   };
 
