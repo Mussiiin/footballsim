@@ -25,7 +25,7 @@ export function FinancesScreen() {
     return data;
   }, [club.financeHistory]);
 
-  const squad = Object.values(world.players).filter((p) => p.clubId === career!.clubId && p.status === 'active');
+  const squad = Object.values(world.players).filter((p) => p.clubId === career!.clubId && p.status === 'active' && !p.arrivingUntil);
   const topWages = [...squad].sort((a, b) => (b.contract?.wage ?? 0) - (a.contract?.wage ?? 0)).slice(0, 8);
 
   return (

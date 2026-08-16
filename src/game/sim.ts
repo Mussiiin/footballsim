@@ -3,7 +3,7 @@ import {
 } from '../lib/types';
 import { addDays, dayOfWeek, monthOf } from '../lib/date';
 import { matchesOnDate, matchForClubOnDate, nextMatchForClub, syncBrackets } from './competitions';
-import { simulateMatch, LineupChoice, fillUserLineup, pickAILineup, defaultStyle } from './matchEngine';
+import { simulateMatch, applyLeagueStandings, LineupChoice, fillUserLineup, pickAILineup, defaultStyle } from './matchEngine';
 import { weeklyDevelopmentTick, weeklyReportNews } from './development';
 import { refreshClubCaches } from './overall';
 import { monthlyFinancesTick } from './finances';
@@ -104,11 +104,78 @@ function simulateAIMatchesOn(world: World, career: Career | null, date: string, 
   return { simulated, newsCount };
 }
 
+/**
+ * Repara partidas órfãs: partidas não jogadas cuja data já passou.
+ *
+ * O simulador de IA só joga partidas na data corrente (`matchesOnDate`), então uma partida
+ * de liga órfã (clube removido, troca de clube no meio da temporada, placeholder não resolvido)
+ * ficaria para sempre sem ser jogada → `isSeasonOver` nunca true → a temporada nunca avança
+ * e "próximo jogo" roda 400 dias em loop, travando a página.
+ *
+ * Esta passada roda todo dia e força a resolução dessas partidas: simula normalmente quando
+ * os dois clubes existem, ou marca como W.O. (resultado padrão) quando algum clube sumiu.
+ */
+function repairOverdueMatches(world: World, career: Career | null): number {
+  let repaired = 0;
+  const date = world.date;
+  const consider = (m: Match) => {
+    if (m.played || m.date >= date) return;
+    // mata-mata ainda sem os clubes definidos: syncBrackets/resolveRound cuidam quando
+    // a fase anterior terminar — não vira W.O. aqui (senão quebra a chave)
+    if (m.homeId === '__TBD__' || m.awayId === '__TBD__') return;
+    const home = world.clubs[m.homeId];
+    const away = world.clubs[m.awayId];
+    const isUserMatch = career !== null && (m.homeId === career.clubId || m.awayId === career.clubId);
+    // partida do usuário: remarca para hoje em vez de jogar à revelia — o fluxo de
+    // matchday (que roda após o reparo, no mesmo dia) a oferece para o usuário jogar.
+    if (isUserMatch) {
+      if (home && away) {
+        m.date = date;
+        repaired++;
+        return;
+      }
+      // sem os dois clubes não dá para remarcar: cai no W.O. abaixo
+    }
+    if (home && away) {
+      try {
+        const opts = simOptsForMatch(world, career, m);
+        const result = simulateMatch(world, m, opts);
+        if (m.importance >= 65) newsFromMatch(world, m, result);
+        repaired++;
+        return;
+      } catch {
+        // elenco vazio/corrompido em save antigo: cai no W.O. abaixo em vez de travar
+      }
+    }
+    // clube ausente: W.O. — resultado padrão para não travar a tabela/temporada
+    m.played = true;
+    m.homeScore = home && !away ? 3 : 0;
+    m.awayScore = away && !home ? 3 : 0;
+    m.stats = null;
+    m.playerStats = [];
+    m.events = [{ minute: 1, type: 'kickoff', team: 'home', detail: 'W.O. — clube ausente' }];
+    const comp = world.competitions[m.competitionId];
+    if (comp && comp.type === 'league') {
+      applyLeagueStandings(comp, m, (m.homeScore ?? 0) > (m.awayScore ?? 0), (m.homeScore ?? 0) === (m.awayScore ?? 0));
+    }
+    repaired++;
+  };
+  for (const list of Object.values(world.leagueMatches)) list.forEach(consider);
+  for (const store of Object.values(world.cupMatches)) store.matches.forEach(consider);
+  for (const store of Object.values(world.continentalMatches)) store.matches.forEach(consider);
+  return repaired;
+}
+
 /** Simula um dia: avança data, processa eventos, simula partidas (exceto do usuário). */
 export function simulateOneDay(world: World, career: Career | null, difficulty: Career['difficulty']): DayResult {
   world.date = addDays(world.date, 1);
   const date = world.date;
   const result: DayResult = { date, userMatch: null, simulated: 0, seasonAdvanced: false, newsCount: 0, transferActivity: 0 };
+
+  // repara partidas órfãs com data passada ANTES do check de partida do usuário:
+  // partidas da IA são jogadas na hora; partidas do usuário são remarcadas para hoje,
+  // então o matchday abaixo as encontra e o usuário joga normalmente (ex.: semifinal de copa).
+  repairOverdueMatches(world, career);
 
   // partida do usuário hoje? se sim, para antes de simulá-la
   const userMatch = career ? matchForClubOnDate(world, career.clubId, date) : null;

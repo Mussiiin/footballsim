@@ -84,7 +84,7 @@ export function positionFit(player: Player, slotPos: Position): number {
 
 function availableFor(clubPlayers: Player[], date: string): Player[] {
   return clubPlayers.filter(
-    (p) => p.status === 'active' && !p.injury && p.suspension <= 0 && p.condition >= 30,
+    (p) => p.status === 'active' && !p.arrivingUntil && !p.injury && p.suspension <= 0 && p.condition >= 30,
   );
 }
 

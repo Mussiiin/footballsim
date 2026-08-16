@@ -5,6 +5,7 @@ import { clamp } from '../lib/format';
 import { addDays, daysBetween } from '../lib/date';
 import { addNews, newsFromTransfer } from './news';
 import { notify } from './news';
+import { isInTransferWindow } from './sim';
 
 let transferCounter = 0;
 
@@ -113,7 +114,8 @@ export function executeTransfer(world: World, career: Career | null, exec: Trans
   const toClub = exec.toClubId ? world.clubs[exec.toClubId] : null;
 
   // contratação do usuário: o jogador NÃO entra no elenco imediatamente.
-  // Ele fica em trânsito (documentação → viagem → exames) e chega em 1-5 dias.
+  // Ele passa por viagem → exames → documentação → contrato → registro,
+  // sempre respeitando a janela de transferências.
   const delayedArrival = career !== null && exec.type === 'transfer' && exec.toClubId === career.clubId;
   let arrivalDays = 0;
   let arrivesOn = '';
@@ -218,6 +220,9 @@ export function executeTransfer(world: World, career: Career | null, exec: Trans
         career.flags.moneySpent += exec.fee;
         career.flags.recordBuy = Math.max(career.flags.recordBuy, exec.fee);
         if (delayedArrival) {
+          // janela fechada: negociação pode existir, mas o registro espera a abertura
+          const windowOpen = isInTransferWindow(world, world.date);
+          const nw = nextTransferWindow(world);
           world.pendingArrivals.unshift({
             id: `arr${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`,
             playerId: p.id,
@@ -227,10 +232,25 @@ export function executeTransfer(world: World, career: Career | null, exec: Trans
             fee: exec.fee,
             type: 'transfer',
             signedAt: world.date,
-            arrivesOn,
-            status: 'Documentação em andamento',
+            arrivesOn: windowOpen ? arrivesOn : nw?.opensOn ?? arrivesOn,
+            stage: windowOpen ? 'travel' : 'waiting',
+            stageEndsOn: windowOpen ? arrivesOn : nw?.opensOn ?? arrivesOn,
+            travelDays: arrivalDays,
+            registeredOn: null,
+            medical: null,
+            registration: windowOpen ? 'pending' : 'awaiting_window',
+            transferStatus: windowOpen ? 'in_transit' : 'awaiting_window',
+            status: windowOpen
+              ? `✈️ Em trânsito — viagem de ${arrivalDays} dia${arrivalDays > 1 ? 's' : ''}`
+              : nw
+                ? `🚫 Janela fechada — aguardando ${nw.label} (${nw.opensOn})`
+                : '🚫 Janela fechada — aguardando próxima abertura',
           });
-          notify(career, `${p.firstName} ${p.lastName} assinou! Documentação em andamento — previsão de chegada em ${arrivalDays} dia${arrivalDays > 1 ? 's' : ''}.`, 'success', '📝', `player:${p.id}`);
+          if (windowOpen) {
+            notify(career, `${p.firstName} ${p.lastName} assinou! Em trânsito — previsão de chegada em ${arrivalDays} dia${arrivalDays > 1 ? 's' : ''}.`, 'success', '📝', `player:${p.id}`);
+          } else {
+            notify(career, `🚫 A janela de transferências está fechada. ${p.firstName} ${p.lastName} será registrado na próxima abertura${nw ? ` (${nw.opensOn})` : ''}.`, 'warning', '🚫', `player:${p.id}`);
+          }
         } else {
           notify(career, `${p.firstName} ${p.lastName} chega ao clube!`, 'success', '📝');
         }
@@ -246,7 +266,30 @@ export function executeTransfer(world: World, career: Career | null, exec: Trans
 }
 
 // ------------------------------------------------------------
-// Chegada de contratações (documentação, viagem, exames, registro)
+// Janela de transferências — informações para a UI e próxima abertura
+// ------------------------------------------------------------
+export function nextTransferWindow(world: World): { label: string; opensOn: string; daysLeft: number } | null {
+  const { summer, winter } = world.windows;
+  const year = Number(world.season.slice(0, 4));
+  const date = world.date;
+  const candidates: { label: string; date: string }[] = [
+    { label: 'Janela de verão', date: `${year}-${summer.start}` },
+    { label: 'Janela de inverno', date: `${year}-${winter.start}` },
+    { label: 'Janela de verão', date: `${year + 1}-${summer.start}` },
+    { label: 'Janela de inverno', date: `${year + 1}-${winter.start}` },
+  ];
+  const future = candidates
+    .filter((c) => c.date > date)
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
+  const next = future[0];
+  if (!next) return null;
+  return { label: next.label, opensOn: next.date, daysLeft: Math.max(1, daysBetween(date, next.date)) };
+}
+
+// ------------------------------------------------------------
+// Chegada de contratações (viagem → exames → documentação → contrato → registro)
+// A janela de transferências é verificada em TODAS as etapas: se a janela fechar
+// antes do registro, o jogador fica pendente até a próxima abertura.
 // ------------------------------------------------------------
 export function tickArrivals(world: World, career: Career | null): void {
   if (!world.pendingArrivals || world.pendingArrivals.length === 0) return;
@@ -254,32 +297,157 @@ export function tickArrivals(world: World, career: Career | null): void {
   for (const a of world.pendingArrivals) {
     const p = world.players[a.playerId];
     if (!p) {
-      continue;
-    }
-    if (world.date < a.arrivesOn) {
-      const daysLeft = Math.max(1, daysBetween(world.date, a.arrivesOn));
-      if (daysLeft >= 3) a.status = 'Documentação em andamento';
-      else if (daysLeft === 2) a.status = 'Viajando para se apresentar ao clube';
-      else a.status = 'Chegou ao clube — realizando exames médicos';
       remaining.push(a);
       continue;
     }
-    // dia da chegada: exames aprovados, contrato registrado e entrada no elenco
-    a.status = 'Exames aprovados — contrato sendo registrado';
-    p.arrivingUntil = null;
     const club = world.clubs[a.clubId];
-    if (club) refreshClubCaches(club, squadOf(world, club.id));
-    if (career && career.clubId === a.clubId) {
-      notify(career, `${p.firstName} ${p.lastName} chegou ao clube e foi registrado!`, 'success', '✍️', `player:${p.id}`);
-      addNews(world, {
-        date: world.date,
-        title: `✍️ ${p.firstName} ${p.lastName} é apresentado no ${club?.name ?? 'clube'}`,
-        subtitle: `O reforço concluiu os exames médicos e teve o contrato registrado — contratação de €${a.fee.toLocaleString('pt-BR')} oficializada.`,
-        category: 'Clubes',
-        playerId: p.id,
-        clubId: a.clubId,
-        importance: 62,
-      });
+    const windowOpen = isInTransferWindow(world, world.date);
+    const isUser = career !== null && career.clubId === a.clubId;
+
+    // jogador cancelado: mantém no histórico como pendência finalizada
+    if (a.transferStatus === 'cancelled') {
+      p.arrivingUntil = null;
+      continue;
+    }
+
+    // aguardando janela: só avança quando a janela abrir
+    if (a.transferStatus === 'awaiting_window') {
+      if (!windowOpen) {
+        remaining.push(a);
+        continue;
+      }
+      // janela abriu — retoma o processo (usa os dias de viagem originais da negociação)
+      a.transferStatus = 'in_transit';
+      a.registration = 'pending';
+      a.stage = 'travel';
+      a.arrivesOn = addDays(world.date, Math.max(1, a.travelDays));
+      a.stageEndsOn = a.arrivesOn;
+      if (isUser) notify(career, `📅 A janela de transferências abriu. ${p.firstName} ${p.lastName} pode ser registrado — iniciando a viagem.`, 'info', '📅');
+      remaining.push(a);
+      continue;
+    }
+
+    // etapa em andamento: ainda não chegou a hora
+    if (world.date < a.stageEndsOn) {
+      a.arrivesOn = a.stageEndsOn;
+      remaining.push(a);
+      continue;
+    }
+
+    // ------------------------------------------------------------
+    // Etapa concluída — avança para a próxima
+    // ------------------------------------------------------------
+    // se a janela fechou no meio do processo, bloqueia o registro até a próxima
+    // O jogador NÃO volta ao elenco: arrivingUntil permanece setado (fora do squad)
+    // até o registro ser concluído na próxima janela.
+    if (!windowOpen && a.registration !== 'registered') {
+      a.transferStatus = 'awaiting_window';
+      a.registration = 'awaiting_window';
+      a.stage = 'waiting';
+      const nw = nextTransferWindow(world);
+      p.arrivingUntil = nw?.opensOn ?? addDays(world.date, 60);
+      a.arrivesOn = p.arrivingUntil;
+      a.status = nw
+        ? `🚫 Registro bloqueado — janela fechada. Próxima janela: ${nw.opensOn} (${nw.daysLeft} dias)`
+        : '🚫 Registro bloqueado — janela de transferências fechada';
+      if (isUser && !a.windowClosedNotified) {
+        a.windowClosedNotified = true;
+        notify(career, `🚫 A transferência de ${p.firstName} ${p.lastName} não pode ser registrada porque a janela de transferências fechou. Ele permanece pendente até a próxima abertura.`, 'danger', '🚫');
+      }
+      remaining.push(a);
+      continue;
+    }
+
+    switch (a.stage) {
+      case 'travel': {
+        a.stage = 'medical';
+        a.stageEndsOn = addDays(world.date, 1);
+        a.status = 'Chegou ao clube — exames médicos em andamento';
+        if (isUser) notify(career, `🏥 ${p.firstName} ${p.lastName} chegou ao clube e iniciou os exames médicos.`, 'info', '🏥', `player:${p.id}`);
+        remaining.push(a);
+        continue;
+      }
+      case 'medical': {
+        // resultado dos exames: sorteado UMA vez e guardado em a.medical —
+        // nunca re-sortear na mesma etapa (evita loop infinito de exames adicionais)
+        if (a.medical === null || a.medical === 'pending') {
+          const rng = new RNG(hashString(world.seed) ^ hashString(`${a.id}|medical`));
+          const injuryScore = (p.injuryHistory.length * 0.06) + (p.injury ? 0.5 : 0);
+          const roll = rng.float(0, 1) + injuryScore;
+          if (roll > 0.94) {
+            a.medical = 'failed';
+            a.transferStatus = 'cancelled';
+            a.cancelReason = 'Jogador reprovado nos exames médicos.';
+            a.status = '❌ Transferência cancelada — reprovado nos exames médicos';
+            p.arrivingUntil = null;
+            if (isUser) notify(career, `❌ ${p.firstName} ${p.lastName} foi reprovado nos exames médicos. A contratação foi cancelada.`, 'danger', '❌', `player:${p.id}`);
+            continue; // não fica na lista ativa (cancelado)
+          }
+          if (roll > 0.8) {
+            a.medical = 'conditional';
+            a.stageEndsOn = addDays(world.date, 2);
+            a.status = '⚠️ Exames com ressalva — exames adicionais em andamento (2 dias)';
+            if (isUser) notify(career, `⚠️ Os médicos encontraram uma pequena preocupação com ${p.firstName} ${p.lastName}. Novos exames serão realizados.`, 'warning', '⚠️', `player:${p.id}`);
+            remaining.push(a);
+            continue;
+          }
+          a.medical = 'approved';
+        } else if (a.medical === 'conditional') {
+          // exames adicionais concluídos — aprovado
+          a.medical = 'approved';
+          a.status = '✅ Exames adicionais concluídos — aprovado';
+        }
+        a.stage = 'docs';
+        a.stageEndsOn = addDays(world.date, 1);
+        a.status = '✅ Exames aprovados — documentação sendo processada';
+        if (isUser && a.medical === 'approved' && !a.status.includes('adicionais')) {
+          notify(career, `✅ ${p.firstName} ${p.lastName} foi aprovado nos exames médicos. Documentação em processamento.`, 'success', '✅', `player:${p.id}`);
+        }
+        remaining.push(a);
+        continue;
+      }
+      case 'docs': {
+        a.stage = 'contract';
+        a.stageEndsOn = addDays(world.date, 1);
+        a.status = '📄 Documentação concluída — contrato em preparação';
+        if (isUser) notify(career, `📄 A documentação de ${p.firstName} ${p.lastName} está pronta. Contrato em preparação.`, 'info', '📄', `player:${p.id}`);
+        remaining.push(a);
+        continue;
+      }
+      case 'contract': {
+        a.stage = 'registration';
+        a.stageEndsOn = addDays(world.date, 1);
+        a.status = '✍️ Contrato assinado — registro na competição';
+        if (isUser) notify(career, `✍️ ${p.firstName} ${p.lastName} assinou o contrato. Registro na competição em andamento.`, 'success', '✍️', `player:${p.id}`);
+        remaining.push(a);
+        continue;
+      }
+      case 'registration': {
+        // registro concluído: jogador entra no elenco (janela já verificada acima)
+        a.stage = 'done';
+        a.registration = 'registered';
+        a.transferStatus = 'completed';
+        a.status = '🟢 Registrado — disponível para o elenco';
+        a.registeredOn = world.date;
+        p.arrivingUntil = null;
+        if (club) refreshClubCaches(club, squadOf(world, club.id));
+        if (isUser) {
+          notify(career, `🟢 ${p.firstName} ${p.lastName} foi registrado e já está disponível para o elenco.`, 'success', '🟢', `player:${p.id}`);
+          addNews(world, {
+            date: world.date,
+            title: `✍️ ${p.firstName} ${p.lastName} é apresentado no ${club?.name ?? 'clube'}`,
+            subtitle: `O reforço concluiu o processo de registro e já está disponível — contratação de €${a.fee.toLocaleString('pt-BR')} oficializada.`,
+            category: 'Clubes',
+            playerId: p.id,
+            clubId: a.clubId,
+            importance: 62,
+          });
+        }
+        continue; // concluído: não fica na lista ativa
+      }
+      default: {
+        remaining.push(a);
+      }
     }
   }
   world.pendingArrivals = remaining;

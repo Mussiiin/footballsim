@@ -230,6 +230,27 @@ export function sackManager(career: Career, reason: string): void {
     achievements: [],
   });
   career.clubId = '';
+  // promessas eram do clube anterior — não valem mais para a nova carreira
+  career.promises = [];
+  // conversas com jogadores do antigo clube perdem validade
+  for (const key of Object.keys(world.playerTalks)) {
+    const t = world.playerTalks[key];
+    const p = world.players[t.playerId];
+    if (p && p.clubId !== club.id) world.playerTalks[key].active = false;
+  }
+  // negociações ativas do clube anterior são canceladas (não podem prosseguir sem clube)
+  for (const neg of Object.values(world.negotiations)) {
+    if (neg.status === 'concluida' || neg.status === 'rejeitada' || neg.status === 'cancelada' || neg.status === 'expirada') continue;
+    neg.status = 'cancelada';
+    neg.rejectedReason = 'Negociação encerrada após mudança de comando técnico.';
+  }
+  // propostas recebidas (venda de jogadores do antigo clube) são retiradas
+  for (const o of world.incomingOffers) {
+    if (o.status === 'pending') {
+      o.status = 'rejected';
+      o.rejectedReason = 'Proposta retirada após mudança de comando técnico.';
+    }
+  }
   notify(career, reason, 'danger', '🚫');
   notify(career, 'Você está desempregado. Procure ofertas de emprego no mercado.', 'warning', '💼');
 }
@@ -248,6 +269,7 @@ export function acceptJobOffer(career: Career, clubId: string): void {
   career.clubId = clubId;
   career.lineup = initialLineup(world, clubId, career.manager.style);
   career.startedSeason = world.season;
+  career.promises = []; // promessas do clube anterior não valem para o novo
   notify(career, `Você foi contratado pelo ${club.name}!`, 'success', '🎉');
 }
 

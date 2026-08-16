@@ -44,7 +44,7 @@ export function TacticsScreen() {
 
   const world = career!.world;
   const lineup = career!.lineup;
-  const squad = useMemo(() => Object.values(world.players).filter((p) => p.clubId === career!.clubId && p.status === 'active'), [world, career]);
+  const squad = useMemo(() => Object.values(world.players).filter((p) => p.clubId === career!.clubId && p.status === 'active' && !p.arrivingUntil), [world, career]);
   const formation = FORMATIONS[lineup.formation];
   const filled = new Set(Object.values(lineup.slots));
 

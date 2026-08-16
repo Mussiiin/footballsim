@@ -207,7 +207,9 @@ export function nextMatchForClub(world: World, clubId: string, afterDate?: strin
   const consider = (m: Match) => {
     if (m.played) return;
     if ((m.homeId === clubId || m.awayId === clubId) && m.homeId !== '__TBD__' && m.awayId !== '__TBD__') {
-      if (afterDate && m.date < afterDate) return;
+      // partida pendente com data passada (órfã, ex.: semi de copa com fase anterior atrasada)
+      // é oferecida normalmente — ela vem antes de qualquer partida futura por ter data menor
+      if (afterDate && m.date < afterDate && !isOrphanCandidate(m)) return;
       if (!best || m.date < best.date) best = m;
     }
   };
@@ -215,6 +217,19 @@ export function nextMatchForClub(world: World, clubId: string, afterDate?: strin
   for (const store of Object.values(world.cupMatches)) store.matches.forEach(consider);
   for (const store of Object.values(world.continentalMatches)) store.matches.forEach(consider);
   return best;
+}
+
+/**
+ * Partidas com data passada e não jogadas são candidatas a "próxima partida" apenas quando
+ * são de fases de mata-mata ainda pendentes (ex.: semifinal de copa) — ou seja, quando a
+ * data passou mas a partida continua no calendário aguardando ser jogada. Partidas de liga
+ * com data passada são sempre órfãs e o repair diário as resolve.
+ */
+function isOrphanCandidate(m: Match): boolean {
+  if (m.competitionId.startsWith('cup_') || m.competitionId === 'CONTINENTAL' || m.competitionId.startsWith('continental')) {
+    return true;
+  }
+  return false;
 }
 
 /** Próxima partida do clube no dia informado (ou null). */

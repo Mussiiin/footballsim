@@ -19,7 +19,7 @@ export function DashboardScreen() {
   const next = useMemo(() => (clubId ? nextMatchForClub(world, clubId, world.date) : null), [world, clubId]);
   const last = useMemo(() => (clubId ? lastMatchForClub(world, clubId) : null), [world, clubId]);
   const club = clubId ? world.clubs[clubId] : null;
-  const squad = useMemo(() => (clubId ? Object.values(world.players).filter((p) => p.clubId === clubId && p.status === 'active') : []), [world, clubId]);
+  const squad = useMemo(() => (clubId ? Object.values(world.players).filter((p) => p.clubId === clubId && p.status === 'active' && !p.arrivingUntil) : []), [world, clubId]);
   const injured = squad.filter((p) => p.injury);
   const suspended = squad.filter((p) => p.suspension > 0);
   const lowCondition = squad.filter((p) => p.condition < 55);
@@ -50,7 +50,26 @@ export function DashboardScreen() {
   };
 
   if (!club) {
-    return <JobsScreen />;
+    return (
+      <div className="space-y-5 animate-fadeUp">
+        {/* barra de avanço de tempo (desempregado) */}
+        <div className="card p-4 flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 mr-auto">
+            <span className="text-2xl">📅</span>
+            <div>
+              <p className="font-display font-bold text-slate-100">{formatDateBR(world.date)}</p>
+              <p className="text-[11px] text-slate-500">Temporada {world.season} · Desempregado</p>
+            </div>
+          </div>
+          {advanceResult && <span className="text-xs text-accent animate-fadeIn">{advanceResult}</span>}
+          <div className="flex gap-2">
+            <button onClick={() => void doAdvance('day')} disabled={!!advancing} className="btn-secondary">{advancing === 'day' ? '…' : 'Avançar dia'}</button>
+            <button onClick={() => void doAdvance('week')} disabled={!!advancing} className="btn-secondary">{advancing === 'week' ? '…' : 'Avançar semana'}</button>
+          </div>
+        </div>
+        <JobsScreen />
+      </div>
+    );
   }
 
   return (

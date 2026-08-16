@@ -7,7 +7,7 @@ import {
   officerAdvice, marketAnalysis, negotiationStatusLabel, wageExpectation, ensureAgent,
   computeInterest, latestReport,
 } from '../../game/negotiation';
-import { daysBetween } from '../../lib/date';
+import { daysBetween, formatDateBR } from '../../lib/date';
 
 const ROLE_OPTIONS: { id: SquadRole; label: string }[] = [
   { id: 'Titular absoluto', label: 'Titular absoluto' },
@@ -258,7 +258,19 @@ export function NegotiationScreen({ playerId }: { playerId: string }) {
           </div>
         )}
 
-        {neg.status === 'exames' && neg.medical && (
+        {neg.status === 'exames' && neg.medical && neg.medical.status === 'pending' && (
+          <div className="text-center space-y-3">
+            <p className="text-sm font-semibold text-gold">🏥 Exames médicos em andamento</p>
+            <p className="text-xs text-slate-400">
+              {neg.medicalDoneOn
+                ? `O resultado sai em ${Math.max(1, daysBetween(world.date, neg.medicalDoneOn))} dia${Math.max(1, daysBetween(world.date, neg.medicalDoneOn)) > 1 ? 's' : ''} (${formatDateBR(neg.medicalDoneOn)}). Avance o tempo para concluir.`
+                : 'Os médicos estão avaliando o jogador. Avance o tempo para concluir.'}
+            </p>
+            <p className="text-xs text-slate-500">🔒 A assinatura do contrato só é liberada após a aprovação nos exames.</p>
+          </div>
+        )}
+
+        {neg.status === 'exames' && neg.medical && neg.medical.status !== 'pending' && (
           <div className="text-center space-y-3">
             <p className={`text-sm font-semibold ${neg.medical.status === 'approved' ? 'text-accent' : neg.medical.status === 'conditional' ? 'text-gold' : 'text-red-400'}`}>
               {neg.medical.status === 'approved' ? '✅ Aprovado nos exames' : neg.medical.status === 'conditional' ? '⚠️ Aprovado com ressalvas' : '❌ Reprovado nos exames'}

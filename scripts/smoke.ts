@@ -6,13 +6,14 @@ import { simulateMatch, fillUserLineup } from '../src/game/matchEngine';
 import { negotiateTransfer, executeTransfer, tickArrivals, squadOf } from '../src/game/transfers';
 import { generateDailyTalk, startManagerTalk, respondTalk } from '../src/game/playerTalks';
 import {
-  scoutPlayer, startNegotiation, sendClubOffer, sendWageOffer, runMedical, signDeal,
+  scoutPlayer, startNegotiation, sendClubOffer, sendWageOffer, runMedical, resolveMedical, signDeal,
   computeInterest, wageExpectation, marketAnalysis, tickNegotiations, respondToBidWar,
   startRenewal, sendRenewalOffer, respondToRenewal, completeRenewal,
   generateIncomingOffers, respondToIncomingOffer, tickIncomingOffers, checkPromises,
   promiseDifficultyFactor, addPlayerPromise,
 } from '../src/game/negotiation';
 import { RNG, hashString } from '../src/lib/rng';
+import { addDays } from '../src/lib/date';
 import { sortedStandings, nextMatchForClub, allMatchesForClub } from '../src/game/competitions';
 import { overallOf } from '../src/game/overall';
 import { Career, Match } from '../src/lib/types';
@@ -208,7 +209,11 @@ console.log('🤝 Testando negociação completa (novo sistema)...');
   check('jogador aceita salário justo', n2.status === 'acordo-verbal', n2.status);
 
   const n3 = runMedical(career.world, career, neg.id);
-  check('exames médicos realizados', n3.medical !== null);
+  check('exames médicos iniciados (pendentes)', n3.medical?.status === 'pending', n3.medical?.status ?? 'null');
+  // resolve o exame: avança até a data de conclusão e processa o resultado
+  if (n3.medicalDoneOn) career.world.date = n3.medicalDoneOn;
+  resolveMedical(career.world, career, n3);
+  check('exame resolvido após o prazo', n3.medical !== null && n3.medical.status !== 'pending', n3.medical?.status ?? 'null');
   if (n3.medical?.status !== 'failed') {
     const result = signDeal(career.world, career, neg.id);
     check('contratação concluída', result.playerId === t1.id);
@@ -324,6 +329,8 @@ console.log('🤝 Testando negociação completa (novo sistema)...');
     });
     check('livre aceita salário', wf.status === 'acordo-verbal', wf.status);
     const mf = runMedical(career.world, career, negF.id);
+    if (mf.medicalDoneOn) career.world.date = mf.medicalDoneOn;
+    resolveMedical(career.world, career, mf);
     if (mf.medical?.status !== 'failed') {
       const rf = signDeal(career.world, career, negF.id);
       check('livre assinou', career.world.players[freeTarget.id].clubId === career.clubId);
@@ -346,6 +353,8 @@ console.log('🤝 Testando negociação completa (novo sistema)...');
       });
       if (wl.status === 'acordo-verbal') {
         const ml = runMedical(career.world, career, negL.id);
+        if (ml.medicalDoneOn) career.world.date = ml.medicalDoneOn;
+        resolveMedical(career.world, career, ml);
         if (ml.medical?.status !== 'failed') {
           const rl = signDeal(career.world, career, negL.id);
           check('empréstimo concluído', career.world.players[loanTarget.id].isLoan === true && career.world.players[loanTarget.id].clubId === career.clubId);
@@ -644,12 +653,18 @@ console.log('🛬 Testando chegada de contratação...');
     check('contratação entra em trânsito (pendingArrivals)', !!pending && !!target.arrivingUntil, '');
     check('jogador em trânsito fora do elenco', !squadOf(w, toClub).some((x) => x.id === target.id));
     if (pending) {
-      w.date = pending.arrivesOn;
-      tickArrivals(w, career);
-      check('jogador registrado após a chegada', !target.arrivingUntil && squadOf(w, toClub).some((x) => x.id === target.id));
+      // sistema em etapas: viagem → exames → documentação → contrato → registro
+      // avança dia a dia até o registro concluir (ou cancelar)
+      let guard = 0;
+      while (pending.transferStatus === 'in_transit' && guard < 40) {
+        w.date = addDays(w.date, 1);
+        tickArrivals(w, career);
+        guard++;
+      }
+      check('jogador registrado após as etapas', pending.transferStatus === 'completed' && !target.arrivingUntil && squadOf(w, toClub).some((x) => x.id === target.id), `(${pending.transferStatus})`);
       check('notícia de apresentação gerada', w.news.some((n) => n.playerId === target.id && n.title.includes('apresentado')));
     } else {
-      check('jogador registrado após a chegada', false, '(sem arrival p/ testar)');
+      check('jogador registrado após as etapas', false, '(sem arrival p/ testar)');
     }
     w.date = savedDate;
     w.pendingArrivals = w.pendingArrivals.filter((a) => a.playerId !== target.id);

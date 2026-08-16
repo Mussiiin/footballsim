@@ -492,6 +492,7 @@ export function startNegotiation(world: World, career: Career, playerId: string,
     mood: { seller: '😐 Neutro', player: interest.score >= 62 ? '🙂 Satisfeito' : '😐 Neutro' },
     bidWar: null,
     medical: null,
+    medicalDoneOn: null,
     rejectedReason: null,
     loanFee: 0,
     loanWageShare: 100,
@@ -1386,23 +1387,41 @@ export function runMedical(world: World, career: Career, negId: string): Transfe
   const neg = Object.values(world.negotiations).find((n) => n.id === negId);
   if (!neg) throw new Error('Negociação não encontrada');
   const p = world.players[neg.playerId];
-  const club = world.clubs[career.clubId];
-  const rng = new RNG(hashString(world.seed) ^ hashString(`${neg.id}|medical`));
+  if (neg.medical && neg.medical.status !== 'pending') return neg;
   neg.status = 'exames';
+  // exames levam 1-2 dias (jogadores com histórico de lesão demoram mais)
+  const injuryExtra = p.injuryHistory.filter((i) => daysBetween(i.date, world.date) <= 730).length >= 2 ? 1 : 0;
+  neg.medicalDoneOn = addDays(world.date, 1 + injuryExtra + (Math.random() < 0.3 ? 1 : 0));
+  neg.medical = { status: 'pending', note: 'Exames em andamento.' };
+  const club = world.clubs[career.clubId];
+  const medFac = club?.staff.find((s) => s.role === 'Médico');
+  const doctor = medFac ? `Dr. ${medFac.name.split(' ')[0]}` : 'Equipe médica';
+  neg.messages.push(msg('medical', `${doctor}: iniciamos os exames médicos de ${p.firstName}. O resultado sai em até ${daysBetween(world.date, neg.medicalDoneOn)} dia${daysBetween(world.date, neg.medicalDoneOn) > 1 ? 's' : ''}.`, world.date));
+  return neg;
+}
+
+/** Resolve o resultado dos exames médicos quando a data chega (chamado no tick diário). */
+export function resolveMedical(world: World, career: Career | null, neg: TransferNegotiation): TransferNegotiation {
+  if (neg.status !== 'exames' || neg.medical?.status !== 'pending') return neg;
+  if (!neg.medicalDoneOn || world.date < neg.medicalDoneOn) return neg;
+  const p = world.players[neg.playerId];
+  const club = career ? world.clubs[career.clubId] : null;
+  const rng = new RNG(hashString(world.seed) ^ hashString(`${neg.id}|medical`));
 
   const recent = p.injuryHistory.filter((i) => daysBetween(i.date, world.date) <= 730);
   const injuryScore = recent.length * 0.14 + (p.injury ? 0.4 : 0) + p.injuryHistory.reduce((s, i) => s + (i.daysOut > 60 ? 0.06 : 0), 0);
   const ageScore = p.age >= 33 ? 0.25 : p.age >= 30 ? 0.12 : 0;
   const facilityScore = (100 - (club?.facilities.medical ?? 60)) / 300;
   const score = clamp(injuryScore + ageScore + facilityScore, 0, 1);
+  const r = rng.float(0, 1);
 
   const medFac = club?.staff.find((s) => s.role === 'Médico');
   const doctor = medFac ? `Dr. ${medFac.name.split(' ')[0]}` : 'Equipe médica';
 
-  if (score < 0.34) {
+  if (score + r * 0.3 < 0.34) {
     neg.medical = { status: 'approved', note: 'Jogador apto. Todos os exames dentro da normalidade.' };
     neg.messages.push(msg('medical', `${doctor}: ${p.firstName} passou nos exames médicos sem ressalvas.`, world.date));
-  } else if (score < 0.6) {
+  } else if (score + r * 0.3 < 0.6) {
     neg.medical = { status: 'conditional', note: `${p.firstName} foi aprovado com ressalvas. Recomendamos atenção com a parte física.` };
     neg.messages.push(msg('medical', `${doctor}: aprovado com ressalvas — histórico de lesões chama atenção, mas não impede a contratação.`, world.date));
   } else {
@@ -1411,7 +1430,7 @@ export function runMedical(world: World, career: Career, negId: string): Transfe
     neg.rejectedReason = 'Jogador reprovado nos exames médicos.';
     neg.messages.push(msg('medical', `${doctor}: infelizmente os exames reprovaram ${p.firstName}. Não podemos concluir a contratação.`, world.date));
   }
-  void rng;
+  neg.medicalDoneOn = null;
   return neg;
 }
 
@@ -1444,6 +1463,10 @@ export interface SigningResult {
 export function signDeal(world: World, career: Career, negId: string): SigningResult {
   const neg = Object.values(world.negotiations).find((n) => n.id === negId);
   if (!neg) throw new Error('Negociação não encontrada');
+  // NUNCA assinar com exame pendente: a validação existe na lógica, não só na UI
+  if (neg.medical?.status === 'pending') {
+    throw new Error('EXAME_PENDENTE: o jogador ainda não foi aprovado nos exames médicos.');
+  }
   if (neg.status !== 'acordo-verbal' && neg.status !== 'exames') {
     neg.status = 'exames';
   }
@@ -1607,6 +1630,11 @@ export function tickNegotiations(world: World, career: Career | null, rng: RNG):
   if (!career) return;
   for (const neg of Object.values(world.negotiations)) {
     if (['concluida', 'rejeitada', 'cancelada', 'expirada'].includes(neg.status)) continue;
+    // exames médicos: resultado sai quando a data chega (1-2 dias)
+    if (neg.status === 'exames' && neg.medical?.status === 'pending') {
+      resolveMedical(world, career, neg);
+      if (neg.status !== 'exames' || neg.medical.status !== 'pending') continue;
+    }
     // prazo
     if (neg.deadline && world.date > neg.deadline) {
       neg.status = 'expirada';
@@ -2190,6 +2218,19 @@ function promiseFulfilled(world: World, career: Career, pr: PlayerPromise): bool
 /** Verifica promessas do elenco: cumpridas ganham moral; quebradas derrubam moral e podem gerar pedido de transferência. */
 export function checkPromises(world: World, career: Career, rng: RNG): void {
   if (!career.promises) return;
+  // sem clube (treinador desempregado ou em transição): promessas não são avaliadas
+  const club = world.clubs[career.clubId];
+  if (!career.clubId || !club) return;
+  // promessas de jogadores que não estão mais no clube do treinador são arquivadas
+  // (ex.: jogador vendido, ou promessas herdadas de outro clube após troca de emprego)
+  career.promises = career.promises.filter((pr) => {
+    const p = world.players[pr.playerId];
+    if (p && p.clubId !== career.clubId) {
+      pr.broken = true; // deixa de valer para o novo comando
+      return false;
+    }
+    return true;
+  });
   for (const pr of career.promises) {
     if (pr.fulfilled || pr.broken) continue;
     const p = world.players[pr.playerId];

@@ -178,7 +178,7 @@ export function LiveMatchScreen() {
 
   const halftimeTalkBoost = () => {
     // conversa motivacional: moral dos titulares do seu time sobe (persistente)
-    const squad = Object.values(world.players).filter((p) => p.clubId === career!.clubId && p.status === 'active');
+    const squad = Object.values(world.players).filter((p) => p.clubId === career!.clubId && p.status === 'active' && !p.arrivingUntil);
     for (const p of squad) {
       p.morale = Math.min(100, p.morale + 4);
       p.happiness = Math.min(100, p.happiness + 2);

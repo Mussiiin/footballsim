@@ -3,7 +3,7 @@
 // Atualização controlada: o SW novo NÃO toma conta sozinho — espera a página
 // avisar (mensagem SKIP_WAITING após o usuário confirmar o banner). Assim quem
 // está jogando não é derrubado no meio de uma partida sem consentimento.
-const CACHE = 'footballsim-v3';
+const CACHE = 'footballsim-v4';
 const CORE = ['./', './index.html', './manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {

@@ -382,8 +382,29 @@ export interface PendingArrival {
   fee: number;
   type: 'transfer' | 'free';
   signedAt: string;      // data da assinatura
-  arrivesOn: string;     // data prevista de chegada
-  status: string;        // estágio atual (documentação, viagem, exames, registro)
+  arrivesOn: string;     // data prevista de chegada (próxima etapa)
+  /** Etapa atual do processo de chegada. */
+  stage: 'waiting' | 'travel' | 'medical' | 'docs' | 'contract' | 'registration' | 'done' | 'cancelled';
+  /** Dias de viagem (recalculados ao retomar de uma janela bloqueada). */
+  travelDays: number;
+  /** Data em que a etapa atual termina (usada para avançar com a data do jogo). */
+  stageEndsOn: string;
+  /** Texto de status exibido na UI (ex.: "✈️ Em trânsito — viagem de 2 dias"). */
+  status: string;
+  /** Data prevista de disponibilidade no elenco (registro concluído). */
+  registeredOn: string | null;
+  /** Resultado dos exames médicos, quando concluídos. */
+  medical: 'pending' | 'approved' | 'conditional' | 'failed' | null;
+  /** Estado do registro (só 'registered' libera o jogador para o elenco). */
+  registration: 'pending' | 'awaiting_window' | 'registered' | 'blocked';
+  /** Estado geral da transferência. */
+  transferStatus: 'in_transit' | 'awaiting_window' | 'completed' | 'cancelled';
+  /** Motivo de cancelamento, quando aplicável. */
+  cancelReason?: string;
+  /** Exceção regulamentar explícita (nunca criada automaticamente). */
+  exception?: string;
+  /** True quando a janela fechou no meio do processo (bloqueio informado). */
+  windowClosedNotified?: boolean;
 }
 
 export type TalkTopic =
@@ -678,6 +699,7 @@ export interface TransferNegotiation {
     raisedAt: string;
   } | null;
   medical: { status: 'pending' | 'approved' | 'conditional' | 'failed'; note?: string } | null;
+  medicalDoneOn: string | null; // data em que os exames médicos terminam (resultado)
   rejectedReason: string | null;
   loanFee: number;
   loanWageShare: number;       // % pago pelo clube que recebe

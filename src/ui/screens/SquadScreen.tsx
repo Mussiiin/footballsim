@@ -17,7 +17,7 @@ export function SquadScreen() {
   const players = useMemo(() => {
     const world = career!.world;
     return Object.values(world.players)
-      .filter((p) => p.clubId === career!.clubId && p.status === 'active');
+      .filter((p) => p.clubId === career!.clubId && p.status === 'active' && !p.arrivingUntil);
   }, [career]);
 
   const filtered = useMemo(() => {

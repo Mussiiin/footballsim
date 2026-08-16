@@ -3,6 +3,7 @@
 // Com VITE_SUPABASE_URL/ANON_KEY: tabela `careers` no Supabase com RLS.
 import { Career, Settings, SeasonStats, PlayerHistoryEntry, RecruitmentOfficer } from './types';
 import { allocateSectorSeats } from '../game/stadium';
+import { addDays } from './date';
 
 // ------------------------------------------------------------
 // Migração de saves antigos para o schema atual
@@ -52,8 +53,33 @@ function migrateCareer(c: Career): Career {
   }
   if (!w.marketHighlights) w.marketHighlights = [];
   if (!w.pendingArrivals) w.pendingArrivals = [];
+  // migração: chegadas antigas (sem o sistema de etapas) ganham o fluxo completo
+  for (const a of w.pendingArrivals) {
+    if (a.stage && a.stageEndsOn && a.transferStatus) continue;
+    const windowOpen = (() => {
+      const mmdd = w.date.slice(5);
+      return (mmdd >= w.windows.summer.start && mmdd <= w.windows.summer.end) || (mmdd >= w.windows.winter.start && mmdd <= w.windows.winter.end);
+    })();
+    a.stage = windowOpen ? 'travel' : 'waiting';
+    a.stageEndsOn = a.arrivesOn ?? addDays(w.date, 1);
+    a.travelDays = Math.max(1, a.travelDays ?? 1);
+    a.registeredOn = null;
+    a.medical = null;
+    a.registration = windowOpen ? 'pending' : 'awaiting_window';
+    a.transferStatus = windowOpen ? 'in_transit' : 'awaiting_window';
+    a.status = windowOpen
+      ? `✈️ Em trânsito — viagem de ${a.travelDays} dia${a.travelDays > 1 ? 's' : ''}`
+      : '🚫 Janela fechada — aguardando próxima abertura';
+  }
   if (!w.playerTalks) w.playerTalks = {};
   if (!w.windowRecordFee) w.windowRecordFee = 0;
+  // migração: negociações antigas sem exame em andamento
+  for (const neg of Object.values(w.negotiations ?? {})) {
+    neg.medicalDoneOn = neg.medicalDoneOn ?? null;
+    if (neg.medical && neg.medical.status === 'pending' && !neg.medicalDoneOn) {
+      neg.medicalDoneOn = addDays(w.date, 1);
+    }
+  }
   for (const cl of Object.values(w.clubs)) {
     cl.fanTrust = cl.fanTrust ?? 55;
   }

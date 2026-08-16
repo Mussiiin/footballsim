@@ -55,6 +55,18 @@ function Router() {
   // telas dentro do jogo
   if (!career) return <HomeScreen />;
 
+  // desempregado: apenas telas que não exigem clube são permitidas
+  const needsClub =
+    route.startsWith('squad') || route.startsWith('tactics') || route.startsWith('competitions') ||
+    route.startsWith('calendar') || route.startsWith('transfers') || route.startsWith('negotiation') ||
+    route.startsWith('renewal') || route.startsWith('promises') || route.startsWith('matchday') ||
+    route === 'finances' || route === 'stadium' || route === 'training' || route === 'club' ||
+    route === 'staff' || route === 'season-end' || route === 'live' ||
+    route.startsWith('talk:') || route.startsWith('player:') || route.startsWith('renewal:') || route.startsWith('club:');
+  if (!career.clubId && needsClub) {
+    return <Shell active="jobs"><DashboardScreen /></Shell>;
+  }
+
   if (route.startsWith('player:')) {
     const id = route.slice(7);
     return <Shell active="squad"><PlayerScreen playerId={id} /></Shell>;

@@ -20,7 +20,7 @@ export function TrainingScreen() {
   const { career, setTrainingFocus, investInYouth, promoteYouth, releaseYouth } = useGame();
   const world = career!.world;
   const club = world.clubs[career!.clubId];
-  const squad = Object.values(world.players).filter((p) => p.clubId === career!.clubId && p.status === 'active');
+  const squad = Object.values(world.players).filter((p) => p.clubId === career!.clubId && p.status === 'active' && !p.arrivingUntil);
   const focus = career!.trainingFocus;
   const youthPool = world.youth?.[career!.clubId] ?? [];
   const academy = club.facilities.youth;
