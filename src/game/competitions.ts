@@ -52,6 +52,25 @@ export function resolveRound(world: World, compId: string, roundIndex: number): 
       m.awayId = away;
       m.homeName = world.clubs[home].name;
       m.awayName = world.clubs[away].name;
+    } else if (home && world.clubs[home] && (away === null || !world.clubs[away])) {
+      // defensivo: o adversário sumiu do mundo → W.O. direto para o mandante
+      m.homeId = home;
+      m.awayId = home;
+      m.homeName = world.clubs[home].name;
+      m.awayName = world.clubs[home].name;
+      m.played = true;
+      m.homeScore = 3;
+      m.awayScore = 0;
+      m.events = [{ minute: 1, type: 'kickoff', team: 'home', detail: 'W.O. — adversário ausente' }];
+    } else if (away && world.clubs[away] && (home === null || !world.clubs[home])) {
+      m.homeId = away;
+      m.awayId = away;
+      m.homeName = world.clubs[away].name;
+      m.awayName = world.clubs[away].name;
+      m.played = true;
+      m.homeScore = 3;
+      m.awayScore = 0;
+      m.events = [{ minute: 1, type: 'kickoff', team: 'home', detail: 'W.O. — adversário ausente' }];
     }
   }
 }
@@ -84,8 +103,13 @@ export function syncBrackets(world: World): void {
         for (const id of round.matchIds) {
           const m = store.matches.find((x) => x.id === id);
           if (m) {
-            const w = winnerOf(m);
-            if (w) store.roundWinners[id] = w;
+            let w = winnerOf(m);
+            // defensivo: partida terminou sem vencedor definido (ex.: W.O. sem clubes,
+            // pênaltis ausentes em save antigo) → manda o mandante para a chave não travar
+            if (!w && m.homeScore !== null && m.awayScore !== null && m.homeId !== '__TBD__') {
+              w = m.homeId;
+            }
+            if (w && w !== '__TBD__' && world.clubs[w]) store.roundWinners[id] = w;
           }
         }
         round.complete = true;
