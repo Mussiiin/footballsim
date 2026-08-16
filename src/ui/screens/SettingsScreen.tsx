@@ -1,3 +1,4 @@
+import { ArrowLeft } from 'lucide-react';
 import { useGame } from '../../state/store';
 import { isSupabaseConfigured } from '../../lib/supabase';
 import {
@@ -9,10 +10,18 @@ import {
 } from '../../game/updateNotes';
 
 export function SettingsScreen() {
-  const { settings, updateSettings, user, logout, navigate, saveNow, lastSaved } = useGame();
+  const { settings, updateSettings, user, logout, navigate, saveNow, lastSaved, goBack } = useGame();
 
   return (
     <div className="max-w-xl mx-auto space-y-5 animate-fadeUp">
+      <button
+        onClick={() => goBack()}
+        className="btn-ghost !px-3 !py-1.5 text-sm transition-transform duration-150 hover:-translate-x-0.5"
+        aria-label="Voltar"
+      >
+        <ArrowLeft size={16} /> Voltar
+      </button>
+
       <h1 className="font-display font-bold text-2xl text-slate-100">Configurações</h1>
 
       <div className="card p-5 space-y-5">
