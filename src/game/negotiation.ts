@@ -16,6 +16,7 @@ import { clamp, fmtMoney } from '../lib/format';
 import { addDays, daysBetween } from '../lib/date';
 import { sellingPrice, executeTransfer, isVitalPlayer, squadOf, freeAgents } from './transfers';
 import { addNews, notify } from './news';
+import { pushOfferMessage } from './messages';
 import { sackManager } from './career';
 import { COUNTRIES } from './names';
 import { POSITION_GROUPS, POSITION_LABELS, DIFFICULTY_CONFIG, Position } from '../lib/types';
@@ -1879,6 +1880,7 @@ export function generateIncomingOffers(world: World, career: Career | null, rng:
     });
     world.incomingOffers.unshift(offer);
     if (world.incomingOffers.length > 80) world.incomingOffers.pop();
+    pushOfferMessage(world, career, club.shortName, target.id, fee);
 
     if (fee >= 15_000_000) {
       addNews(world, {

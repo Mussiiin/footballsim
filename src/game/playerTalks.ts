@@ -11,6 +11,7 @@ import { RNG } from '../lib/rng';
 import { clamp } from '../lib/format';
 import { notify } from './news';
 import { roleForPlayer, addPlayerPromise } from './negotiation';
+import { pushTalkMessage, recordTalk } from './messages';
 
 const talkId = () => `talk${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
 
@@ -22,7 +23,7 @@ export function talkTopicLabel(t: TalkTopic): string {
   const map: Record<TalkTopic, string> = {
     minutes: 'Tempo de jogo', starter: 'Pedido de titularidade', bench: 'Queixa do banco',
     loan: 'Pedido de empréstimo', exit: 'Pedido de saída', raise: 'Aumento salarial',
-    position: 'Posição em campo', training: 'Treinamento', praise: 'Elogio ao treinador',
+    contract: 'Renovação de contrato', position: 'Posição em campo', training: 'Treinamento', praise: 'Elogio ao treinador',
     performance: 'Preocupação com desempenho', conflict: 'Conflito com companheiro',
     plans: 'Planos para o futuro', youth: 'Oportunidade da base', veteran: 'Papel no elenco',
     checkin: 'Conversa do treinador',
@@ -81,6 +82,7 @@ export function generateDailyTalk(world: World, career: Career, rng: RNG): Playe
   const talk = buildTalk(world, career, pick.p, topic, 'player');
   career.flags.lastTalkDate = world.date;
   world.playerTalks[talk.id] = talk;
+  pushTalkMessage(world, career, talk, `"${talk.line.slice(0, 90)}${talk.line.length > 90 ? '…' : ''}"`);
   notify(
     career,
     `💬 ${pick.p.firstName} ${pick.p.lastName} quer conversar: ${talkTopicLabel(topic).toLowerCase()}.`,
@@ -152,6 +154,12 @@ function buildTalk(world: World, career: Career, p: Player, topic: TalkTopic, in
       opt('promise', 'Prometo aumento salarial no fim da temporada');
       opt('renew', 'Vamos abrir uma negociação de renovação');
       opt('no', 'Não agora — o momento do clube é difícil');
+      break;
+    case 'contract':
+      line = `Meu contrato está chegando ao fim. O clube pretende renovar comigo? Queria saber se ainda estou nos planos.`;
+      opt('renew', 'Sim — vamos conversar sobre renovação agora');
+      opt('later', 'Vamos conversar sobre isso depois');
+      opt('no', 'Não está nos planos renovar');
       break;
     case 'position':
       line = `Estou rendendo menos porque não jogo na minha posição. Gostaria de voltar para a minha posição natural.`;
@@ -311,6 +319,19 @@ export function respondTalk(world: World, career: Career, talkIdKey: string, opt
         ok(`${p.firstName} entendeu, mas a satisfação caiu (satisfação -10).`);
       }
       break;
+    case 'contract':
+      if (optionId === 'renew') {
+        setH(p, 10); setR(p, 8);
+        ok(`${p.firstName} ficou aliviado — ele quer renovar. Abra a renovação no perfil dele para negociar salário, bônus e duração (satisfação +10).`);
+      } else if (optionId === 'later') {
+        setH(p, -2); setR(p, 2);
+        ok('Ele entendeu, mas quer resolver isso em breve (relação +2).');
+      } else {
+        setH(p, -14); setR(p, -8);
+        if (p.happiness < 40) p.transferRequested = true;
+        ok(`${p.firstName} ficou muito decepcionado. Se ele não renovar, pode sair de graça ou pedir transferência (satisfação -14).`);
+      }
+      break;
     case 'position':
       if (optionId === 'promise') {
         addPlayerPromise(world, career, p.id, 'Jogar na posição preferida');
@@ -403,6 +424,9 @@ export function respondTalk(world: World, career: Career, talkIdKey: string, opt
       }
       break;
   }
+
+  // histórico permanente da conversa (Central de Mensagens e perfil do jogador)
+  recordTalk(world, p.id, talk.topic, talk.result ?? talk.line);
 
   delete world.playerTalks[talkIdKey];
   return talk;

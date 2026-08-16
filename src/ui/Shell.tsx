@@ -3,8 +3,9 @@ import { useGame } from '../state/store';
 import { formatDateBR, WEEKDAYS_SHORT } from '../lib/date';
 import {
   LayoutDashboard, Users, ClipboardList, Trophy, CalendarDays, ArrowLeftRight, Landmark,
-  Wallet, Dumbbell, Newspaper, Building2, Medal, Settings, Menu, X, Bell, Briefcase, ChevronRight, Rocket,
+  Wallet, Dumbbell, Newspaper, Building2, Medal, Settings, Menu, X, Bell, Briefcase, ChevronRight, Rocket, MessageSquare,
 } from 'lucide-react';
+import { unreadInboxCount } from '../game/messages';
 import { ClubCrest, PlayerAvatar } from './components';
 import { nextMatchForClub } from '../game/competitions';
 import { overallOf } from '../game/overall';
@@ -26,6 +27,7 @@ const NAV: NavItem[] = [
   { id: 'stadium', label: 'Estádio', icon: <Landmark size={17} /> },
   { id: 'finances', label: 'Finanças', icon: <Wallet size={17} /> },
   { id: 'training', label: 'Treino', icon: <Dumbbell size={17} /> },
+  { id: 'messages', label: 'Mensagens', icon: <MessageSquare size={17} /> },
   { id: 'news', label: 'Notícias', icon: <Newspaper size={17} /> },
   { id: 'staff', label: 'Comissão', icon: <Briefcase size={17} /> },
   { id: 'records', label: 'Recordes', icon: <Medal size={17} /> },
@@ -38,6 +40,7 @@ export function Shell({ children, active }: { children: React.ReactNode; active:
 
   const club = career.world.clubs[career.clubId];
   const unread = career.notifications.filter((n) => !n.read).length;
+  const unreadMsgs = unreadInboxCount(career.world);
   const next = career.clubId ? nextMatchForClub(career.world, career.clubId, career.world.date) : null;
   const dow = WEEKDAYS_SHORT[new Date(career.world.date + 'T12:00:00').getDay()];
 
@@ -81,6 +84,9 @@ export function Shell({ children, active }: { children: React.ReactNode; active:
           >
             {item.icon}
             {item.label}
+            {item.id === 'messages' && unreadMsgs > 0 && (
+              <span className="ml-auto text-[10px] font-bold bg-accent text-surface-950 rounded-full px-1.5 py-0.5 min-w-[18px] text-center">{unreadMsgs}</span>
+            )}
             {item.id === 'news' && unread > 0 && (
               <span className="ml-auto text-[10px] font-bold bg-red-500 text-white rounded-full px-1.5 py-0.5 min-w-[18px] text-center">{unread}</span>
             )}

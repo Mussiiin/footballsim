@@ -410,7 +410,7 @@ export interface PendingArrival {
 }
 
 export type TalkTopic =
-  | 'minutes' | 'starter' | 'bench' | 'loan' | 'exit' | 'raise' | 'position'
+  | 'minutes' | 'starter' | 'bench' | 'loan' | 'exit' | 'raise' | 'contract' | 'position'
   | 'training' | 'praise' | 'performance' | 'conflict' | 'plans' | 'youth' | 'veteran' | 'checkin';
 
 export interface TalkOption {
@@ -429,6 +429,36 @@ export interface PlayerTalk {
   active: boolean;
   result?: string;       // mensagem após a resposta
   initiatedBy: 'player' | 'manager';
+}
+
+export type InboxCategory = 'transfer' | 'squad' | 'contract' | 'board';
+export type InboxPriority = 'low' | 'normal' | 'important' | 'urgent';
+
+/** Mensagem na Central de Mensagens (caixa de entrada do treinador). */
+export interface InboxMessage {
+  id: string;
+  date: string;
+  /** playerId quando vem de um jogador; clubId quando de outro clube; null p/ sistema/diretoria. */
+  playerId?: string;
+  clubId?: string;
+  senderName: string;
+  title: string;
+  preview: string;
+  category: InboxCategory;
+  priority: InboxPriority;
+  read: boolean;
+  /** Rota para onde navegar ao clicar (ex.: talk:playerId, transfers). */
+  link?: string;
+  /** Se houver conversa ativa, id da PlayerTalk associada. */
+  talkId?: string;
+}
+
+export interface TalkHistoryEntry {
+  id: string;
+  playerId: string;
+  topic: TalkTopic;
+  date: string;
+  summary: string;
 }
 
 export interface MatchEvent {
@@ -932,6 +962,10 @@ export interface World {
   leagueMatches: Record<string, Match[]>;
   cupMatches: Record<string, CupMatchStore>;
   continentalMatches: Record<string, ContinentalMatchStore>;
+  /** Central de Mensagens — caixa de entrada do treinador. */
+  inbox: InboxMessage[];
+  /** Histórico permanente de conversas com jogadores. */
+  talkHistory: TalkHistoryEntry[];
 }
 
 export type MatchRef =

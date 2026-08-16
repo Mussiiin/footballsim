@@ -72,6 +72,8 @@ function migrateCareer(c: Career): Career {
       : '🚫 Janela fechada — aguardando próxima abertura';
   }
   if (!w.playerTalks) w.playerTalks = {};
+  if (!w.inbox) w.inbox = [];
+  if (!w.talkHistory) w.talkHistory = [];
   if (!w.windowRecordFee) w.windowRecordFee = 0;
   // migração: negociações antigas sem exame em andamento
   for (const neg of Object.values(w.negotiations ?? {})) {

@@ -6,6 +6,8 @@ import { formatDateBR } from '../../lib/date';
 import { fmtMoney } from '../../lib/format';
 import { overallOf } from '../../game/overall';
 import { computeInterest } from '../../game/negotiation';
+import { talkHistoryFor, openPlayerConversation } from '../../game/messages';
+import { talkTopicLabel } from '../../game/playerTalks';
 import { Player, PlayerAttributes } from '../../lib/types';
 import { ArrowLeft } from 'lucide-react';
 
@@ -35,6 +37,7 @@ const DEF_ATTRS: { key: keyof PlayerAttributes; label: string }[] = [
 export function PlayerScreen({ playerId }: { playerId: string }) {
   const { career, goBack, startRenewal, navigate } = useGame();
   const p: Player | undefined = career?.world.players[playerId];
+  const talkHistory = career?.world ? talkHistoryFor(career.world, playerId) : [];
 
   const recent = useMemo(() => {
     if (!p || !career) return [];
@@ -164,7 +167,7 @@ export function PlayerScreen({ playerId }: { playerId: string }) {
                   📄 Conversar sobre renovação
                 </button>
                 <button
-                  onClick={() => navigate(`talk:${p.id}`)}
+                  onClick={() => openPlayerConversation(p.id)}
                   className="btn-secondary w-full !py-2 text-sm"
                   title="Conversar sobre papel, minutos, salário e mais"
                 >
@@ -194,6 +197,27 @@ export function PlayerScreen({ playerId }: { playerId: string }) {
             <p>⭐ {p.seasonStats.manOfMatch} melhor em campo</p>
           </div>
         </div>
+      </div>
+
+      {/* conversas */}
+      <div className="card p-5">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">💬 Histórico de conversas</p>
+          <button onClick={() => openPlayerConversation(p.id)} className="btn-secondary !py-1 text-xs">Conversar agora</button>
+        </div>
+        {talkHistory.length === 0 ? (
+          <p className="text-sm text-slate-500">Nenhuma conversa registrada ainda.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {talkHistory.slice(0, 6).map((t) => (
+              <div key={t.id} className="flex items-start gap-2 py-1.5 border-b border-surface-700/40 last:border-0">
+                <span className="text-[10px] text-slate-500 shrink-0 mt-0.5">{formatDateBR(t.date)}</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-sky-400 shrink-0 mt-0.5">{talkTopicLabel(t.topic)}</span>
+                <p className="text-xs text-slate-400">{t.summary}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* histórico */}

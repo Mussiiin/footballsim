@@ -948,6 +948,8 @@ export function generateWorld(seed: string, season = '2026/27'): World {
     incomingOffers: [],
     pendingArrivals: [],
     playerTalks: {},
+    inbox: [],
+    talkHistory: [],
     marketHighlights: [],
     windowRecordFee: 0,
     agents: {},

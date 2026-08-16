@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { GameProvider, useGame } from './state/store';
 import { UpdateModal } from './ui/UpdateModal';
+import { ConversationGate } from './ui/PlayerConversationModal';
 import {
   shouldShowUpdatePopup,
   dismissUpdatePopup,
@@ -34,6 +35,7 @@ import { SettingsScreen } from './ui/screens/SettingsScreen';
 import { AboutScreen } from './ui/screens/AboutScreen';
 import { JobsScreen } from './ui/screens/JobsScreen';
 import { SeasonEndScreen } from './ui/screens/SeasonEndScreen';
+import { MessagesScreen } from './ui/screens/MessagesScreen';
 import { Shell } from './ui/Shell';
 
 function Router() {
@@ -67,7 +69,7 @@ function Router() {
     route.startsWith('calendar') || route.startsWith('transfers') || route.startsWith('negotiation') ||
     route.startsWith('renewal') || route.startsWith('promises') || route.startsWith('matchday') ||
     route === 'finances' || route === 'stadium' || route === 'training' || route === 'club' ||
-    route === 'staff' || route === 'season-end' || route === 'live' ||
+    route === 'staff' || route === 'season-end' || route === 'live' || route === 'messages' ||
     route.startsWith('talk:') || route.startsWith('player:') || route.startsWith('renewal:') || route.startsWith('club:');
   if (!career.clubId && needsClub) {
     return <Shell active="jobs"><DashboardScreen /></Shell>;
@@ -117,6 +119,7 @@ function Router() {
     staff: <StaffScreen />,
     records: <RecordsScreen />,
     jobs: <JobsScreen />,
+    messages: <MessagesScreen />,
   };
   const screen = map[route] ?? <DashboardScreen />;
   return <Shell active={route}>{screen}</Shell>;
@@ -160,6 +163,7 @@ export default function App() {
     <GameProvider>
       <Router />
       <UpdateGate />
+      <ConversationGate />
     </GameProvider>
   );
 }
