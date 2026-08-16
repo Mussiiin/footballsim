@@ -27,13 +27,44 @@ export interface UpdateNoteVersion {
 }
 
 /** Versão do build atual do jogo (a mais recente disponível). */
-export const GAME_VERSION = '1.5.0';
+export const GAME_VERSION = '1.6.0';
 
 /** Versão "instalada" padrão de quem nunca passou por uma atualização. */
 const DEFAULT_APPLIED_VERSION = '1.4.2';
 
 /** Histórico completo de versões (mais recente primeiro). */
 export const UPDATE_HISTORY: UpdateNoteVersion[] = [
+  {
+    version: '1.6.0',
+    title: 'Resumo de Temporada e Navegação',
+    date: '17/08/2026',
+    required: false,
+    newFeatures: [
+      {
+        title: 'Fase exata por competição no resumo',
+        description: 'O fim de temporada agora mostra o avanço real do clube em cada copa e continental (ex.: "Quartas de final", "Oitavas"), calculado pelas partidas disputadas — em vez de "Participou".',
+      },
+      {
+        title: 'Comparação com a temporada anterior',
+        description: 'Card no resumo mostrando a evolução do clube entre anos: posição, pontos e gols marcados/sofridos, com indicadores de melhora ou piora.',
+      },
+    ],
+    improvements: [
+      {
+        title: 'Botão Voltar nas Configurações',
+        description: 'Volte para a tela anterior de onde abriu as Configurações (Elenco, Home, Partida…) usando o histórico de navegação.',
+      },
+      {
+        title: 'Evolução do elenco no resumo',
+        description: 'Jogadores que mais evoluíram e quedas de rendimento registradas durante a temporada, com overall antes → depois.',
+      },
+      {
+        title: 'Recordes e prêmios da temporada',
+        description: 'Recordes quebrados com valores formatados e prêmios individuais por tipo no resumo de fim de temporada.',
+      },
+    ],
+    bugFixes: [],
+  },
   {
     version: '1.5.0',
     title: 'Grande Atualização',
