@@ -306,6 +306,8 @@ export interface Club {
   lastResults: ('W' | 'D' | 'L')[];
   financeHistory: FinanceEntry[];
   lastSeasonPosition: number | null;
+  /** snapshot da classificação final da temporada anterior (para comparação no resumo). */
+  lastSeason?: { season: string; position: number; points: number; gf: number; ga: number } | null;
   rivals: string[];         // rivalidades (ids de clubes)
   averageAge: number;  // cache
   squadStrength: number; // cache overall médio
@@ -887,6 +889,10 @@ export interface SeasonSummary {
   relegated: { clubId: string; from: string; to: string }[];
   retired: { name: string; clubName: string; age: number }[];
   positions: Record<string, number>;
+  /** evolução de overall dos jogadores do clube do usuário durante a temporada (antes → depois). */
+  development?: { playerId: string; name: string; clubId: string; from: number; to: number }[];
+  /** dados da temporada anterior do clube do usuário (para comparação no resumo). */
+  lastSeason?: { season: string; position: number; points: number; gf: number; ga: number } | null;
 }
 
 export interface World {

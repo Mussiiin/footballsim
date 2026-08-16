@@ -52,6 +52,8 @@ function finalizeLeagues(world: World, summary: SeasonSummary): void {
           club.financeAccum.revenue += p;
         }
         club.lastSeasonPosition = i + 1;
+        // snapshot completo da temporada (para comparação no resumo do ano seguinte)
+        club.lastSeason = { season: comp.season, position: i + 1, points: s.points, gf: s.gf, ga: s.ga };
         summary.positions[s.clubId] = i + 1;
       });
 
@@ -350,6 +352,8 @@ export function finalizeSeason(world: World, career: Career | null, difficulty: 
     relegated: [],
     retired: [],
     positions: {},
+    // guarda a temporada anterior ANTES de finalizeLeagues sobrescrever o snapshot do clube
+    lastSeason: career?.clubId ? world.clubs[career.clubId]?.lastSeason ?? null : null,
   };
 
   // finais de copas e continental (se ainda não finalizados)
@@ -373,8 +377,26 @@ export function finalizeSeason(world: World, career: Career | null, difficulty: 
 
   summary.topScorers = topScorersOf(world, world.countries[0].divisions[0], 10);
 
-  // evolução sazonal
+  // evolução sazonal — captura o overall antes/depois para mostrar no resumo
+  const devBefore = new Map<string, number>();
+  for (const p of Object.values(world.players)) {
+    if (p.status === 'active') devBefore.set(p.id, overallOf(p));
+  }
   seasonalDevelopment(world, DIFFICULTY_CONFIG[difficulty].devSpeed);
+  if (career?.clubId) {
+    summary.development = Object.values(world.players)
+      .filter((p) => p.status === 'active' && p.clubId === career.clubId && devBefore.has(p.id))
+      .map((p) => ({
+        playerId: p.id,
+        name: `${p.firstName} ${p.lastName}`,
+        clubId: p.clubId ?? '',
+        from: devBefore.get(p.id)!,
+        to: overallOf(p),
+      }))
+      .filter((d) => d.from !== d.to)
+      .sort((a, b) => (b.to - b.from) - (a.to - a.from))
+      .slice(0, 20);
+  }
 
   // envelhece
   const newStart = `${Number(world.season.slice(0, 4)) + 1}-07-01`;
