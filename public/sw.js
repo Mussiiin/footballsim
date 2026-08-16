@@ -1,12 +1,16 @@
 // FootballSim — Service Worker (PWA)
 // Estratégia: cache-first para assets estáticos, network-first para navegação.
-const CACHE = 'footballsim-v1';
-const CORE = ['/', './index.html', './manifest.webmanifest'];
+// Atualização controlada: o SW novo NÃO toma conta sozinho — espera a página
+// avisar (mensagem SKIP_WAITING após o usuário confirmar o banner). Assim quem
+// está jogando não é derrubado no meio de uma partida sem consentimento.
+const CACHE = 'footballsim-v2';
+const CORE = ['./', './index.html', './manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(CORE)).then(() => self.skipWaiting())
+    caches.open(CACHE).then((c) => c.addAll(CORE))
   );
+  // sem skipWaiting automático: a decisão é do cliente via mensagem
 });
 
 self.addEventListener('activate', (e) => {
@@ -17,11 +21,18 @@ self.addEventListener('activate', (e) => {
   );
 });
 
+// o cliente (main.tsx) pede para ativar a nova versão após o usuário aceitar
+self.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
 
-  // navegação: tenta rede, cai para cache (offline)
+  // navegação: tenta rede (sempre busca a versão mais recente), cai para cache (offline)
   if (req.mode === 'navigate') {
     e.respondWith(
       fetch(req)
