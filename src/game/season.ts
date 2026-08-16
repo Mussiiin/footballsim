@@ -11,6 +11,7 @@ import { seasonalDevelopment, agePlayers, processRetirements, advanceYouthSeason
 import { addNews, newsFromTitle, newsFromRetirement, notify } from './news';
 import { isVitalPlayer, squadOf } from './transfers';
 import { resetMatchCounter, leagueFixtures, cupFixtures, continentalFixtures } from './worldgen';
+import { stadiumSeasonReset } from './stadium';
 
 export interface SeasonSummary {
   season: string;
@@ -314,6 +315,8 @@ function setupNewSeason(world: World): void {
     refreshClubCaches(club, squadOf(world, club.id));
     // forma dos clubes começa zerada na nova temporada (não herda resultados antigos)
     club.lastResults = [];
+    // estádio: histórico da temporada, camarotes e naming rights renovam
+    stadiumSeasonReset(world, club);
   }
 
   // atualiza clubes: ligas após promoção/rebaixamento

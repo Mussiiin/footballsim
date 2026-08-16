@@ -2,8 +2,9 @@ import {
   World, Club, Player, Competition, Country, Position, PositionGroup,
   Personality, Stadium, Coach, StaffMember, StaffRole, ClubObjective, ClubTier,
   Contract, SeasonStats, PlayerHistoryEntry, Match, CupRound, RecordItem, MatchRef,
-  POSITION_GROUPS,
+  POSITION_GROUPS, StadiumSectorId, StadiumSector,
 } from '../lib/types';
+import { SECTOR_IDS, allocateSectorSeats } from './stadium';
 import { RNG } from '../lib/rng';
 import { COUNTRIES, CountryData, CONTINENTAL_COMPETITION } from './names';
 import { overallAt, estimateValue, estimateWage } from './overall';
@@ -322,12 +323,67 @@ function stadiumFor(tier: ClubTier, rng: RNG, city: string, suffix: string): Sta
   const [min, max] = capRange[tier];
   const capacity = rng.int(min, max);
   const occupancy = rng.float(0.6, 0.95);
+  const sectors = {} as Record<StadiumSectorId, StadiumSector>;
+  const seats = allocateSectorSeats(capacity);
+  for (const id of SECTOR_IDS) {
+    sectors[id] = { seats: seats[id], price: 0, share: seats[id] / capacity };
+  }
+  const rep = tier === 'Gigante' ? rng.int(70, 95) : tier === 'Grande' ? rng.int(55, 75) : tier === 'Médio' ? rng.int(40, 60) : tier === 'Pequeno' ? rng.int(25, 45) : rng.int(10, 28);
+  const basePrices: Record<StadiumSectorId, number> = {
+    arquibancada: Math.max(4, Math.round(5 + rep * 0.25)),
+    cadeira: Math.max(6, Math.round(8 + rep * 0.45)),
+    premium: Math.max(12, Math.round(14 + rep * 0.85)),
+    vip: Math.max(20, Math.round(22 + rep * 1.2)),
+    camarote: Math.max(30, Math.round(32 + rep * 1.6)),
+  };
+  for (const id of SECTOR_IDS) sectors[id].price = basePrices[id];
+  const comfortBase = rng.int(45, 88);
   return {
     name: `${city} ${suffix}`,
     capacity,
     avgAttendance: Math.round(capacity * occupancy),
     condition: rng.int(55, 95),
     maintenanceCost: Math.round(capacity * rng.float(0.6, 1.1)),
+    reputation: rep,
+    satisfaction: rng.int(55, 85),
+    atmosphere: rng.int(45, 75),
+    protest: rng.int(0, 15),
+    sectors,
+    comfort: {
+      assentos: comfortBase, banheiros: rng.int(35, 85), alimentacao: rng.int(40, 90),
+      climatizacao: rng.int(30, 80), acessibilidade: rng.int(30, 80), limpeza: rng.int(50, 90),
+      iluminacao: rng.int(45, 90), acustica: rng.int(40, 85),
+    },
+    foodLevel: tier === 'Gigante' ? rng.int(1, 3) : rng.int(0, 2),
+    storeLevel: tier === 'Gigante' ? rng.int(1, 3) : rng.int(0, 2),
+    vipLevel: tier === 'Gigante' ? rng.int(1, 3) : rng.int(0, 2),
+    parking: {
+      spaces: Math.round(capacity * rng.float(0.04, 0.09)),
+      price: tier === 'Gigante' ? 15 : tier === 'Grande' ? 10 : 6,
+      level: tier === 'Gigante' ? 2 : rng.int(0, 1),
+    },
+    security: rng.int(45, 90),
+    tech: {
+      telao: tier === 'Gigante' ? rng.int(2, 3) : rng.int(0, 2),
+      som: tier === 'Gigante' ? rng.int(2, 3) : rng.int(0, 2),
+      wifi: rng.chance(0.4), app: rng.chance(0.3), catapulta: rng.chance(0.2), smartTickets: rng.chance(0.25),
+    },
+    boxes: {
+      total: tier === 'Gigante' ? rng.int(30, 70) : tier === 'Grande' ? rng.int(12, 30) : rng.int(4, 12),
+      sold: 0,
+      price: tier === 'Gigante' ? rng.int(400_000, 800_000) : tier === 'Grande' ? rng.int(200_000, 400_000) : rng.int(80_000, 200_000),
+    },
+    works: [],
+    naming: null,
+    namingProposal: null,
+    bookings: [],
+    dynamicPricing: false,
+    lastPriceChange: null,
+    history: [],
+    value: 0,
+    eventsHosted: 0,
+    protestsFired: 0,
+    seasonAccum: { attendance: 0, matches: 0, ticket: 0, commercial: 0, costs: 0 },
   };
 }
 
@@ -403,6 +459,7 @@ function generateClub(
     lastResults: [],
     financeHistory: [],
     lastSeasonPosition: null,
+    rivals: [],
     averageAge: 25,
     squadStrength: clubStr,
     morale: 70,
@@ -858,6 +915,21 @@ export function generateWorld(seed: string, season = '2026/27'): World {
     const l1 = world.competitions[c.divisions[0]];
     const sorted = [...l1.clubIds].sort((a, b) => world.clubs[b].reputation - world.clubs[a].reputation);
     for (const cid of sorted.slice(0, 4)) cont.clubIds.push(cid);
+  }
+
+  // rivalidades: 2-3 adversários do mesmo país com reputação próxima (dérbis)
+  for (const c of world.countries) {
+    const pool = [];
+    for (const lid of c.divisions) pool.push(...world.competitions[lid].clubIds);
+    for (const cid of pool) {
+      const club = world.clubs[cid];
+      const candidates = pool
+        .filter((x) => x !== cid)
+        .map((x) => ({ id: x, diff: Math.abs(world.clubs[x].reputation - club.reputation) }))
+        .sort((a, b) => a.diff - b.diff);
+      const n = club.tier === 'Gigante' ? 3 : 2;
+      club.rivals = candidates.slice(0, n).map((x) => x.id);
+    }
   }
 
   // jogadores

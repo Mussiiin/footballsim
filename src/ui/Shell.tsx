@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useGame } from '../state/store';
 import { formatDateBR, WEEKDAYS_SHORT } from '../lib/date';
 import {
-  LayoutDashboard, Users, ClipboardList, Trophy, CalendarDays, ArrowLeftRight,
+  LayoutDashboard, Users, ClipboardList, Trophy, CalendarDays, ArrowLeftRight, Landmark,
   Wallet, Dumbbell, Newspaper, Building2, Medal, Settings, Menu, X, Bell, Briefcase, ChevronRight,
 } from 'lucide-react';
 import { ClubCrest, PlayerAvatar } from './components';
@@ -22,6 +22,7 @@ const NAV: NavItem[] = [
   { id: 'competitions', label: 'Competições', icon: <Trophy size={17} /> },
   { id: 'calendar', label: 'Calendário', icon: <CalendarDays size={17} /> },
   { id: 'transfers', label: 'Mercado', icon: <ArrowLeftRight size={17} /> },
+  { id: 'stadium', label: 'Estádio', icon: <Landmark size={17} /> },
   { id: 'finances', label: 'Finanças', icon: <Wallet size={17} /> },
   { id: 'training', label: 'Treino', icon: <Dumbbell size={17} /> },
   { id: 'news', label: 'Notícias', icon: <Newspaper size={17} /> },

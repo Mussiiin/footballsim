@@ -2,6 +2,7 @@
 // Sem configuração Supabase: IndexedDB local (modo demo).
 // Com VITE_SUPABASE_URL/ANON_KEY: tabela `careers` no Supabase com RLS.
 import { Career, Settings, SeasonStats, PlayerHistoryEntry, RecruitmentOfficer } from './types';
+import { allocateSectorSeats } from '../game/stadium';
 
 // ------------------------------------------------------------
 // Migração de saves antigos para o schema atual
@@ -62,6 +63,59 @@ function migrateCareer(c: Career): Career {
   c.flags.boardCrisis = c.flags.boardCrisis ?? false;
   c.flags.talksHad = c.flags.talksHad ?? 0;
   c.flags.lastTalkDate = c.flags.lastTalkDate ?? '';
+  const fillStadium = (st: any) => {
+    const S = ['arquibancada', 'cadeira', 'premium', 'vip', 'camarote'] as const;
+    st.reputation = st.reputation == null ? Math.min(95, Math.round(20 + st.capacity / 800)) : Math.min(100, st.reputation);
+    st.satisfaction = st.satisfaction ?? 65;
+    st.atmosphere = st.atmosphere ?? 55;
+    st.protest = st.protest ?? 0;
+    if (!st.sectors || !st.sectors.arquibancada) {
+      const prices = { arquibancada: 10, cadeira: 20, premium: 40, vip: 70, camarote: 110 } as const;
+      const seats = allocateSectorSeats(st.capacity);
+      st.sectors = Object.fromEntries(S.map((id) => [id, { seats: seats[id], price: prices[id], share: seats[id] / st.capacity }])) as any;
+    } else {
+      const sum = S.reduce((a, id) => a + (st.sectors[id]?.seats ?? 0), 0);
+      // setores mal distribuídos (soma ≠ capacidade, ex.: bug antigo que somava 183%)
+      if (Math.abs(sum - st.capacity) / Math.max(1, st.capacity) > 0.01) {
+        const seats = allocateSectorSeats(st.capacity);
+        const prices = st.sectors.arquibancada?.price;
+        for (const id of S) {
+          st.sectors[id].seats = seats[id];
+          st.sectors[id].share = seats[id] / st.capacity;
+          st.sectors[id].price = st.sectors[id].price ?? (id === 'arquibancada' ? 10 : id === 'cadeira' ? 20 : id === 'premium' ? 40 : id === 'vip' ? 70 : 110);
+        }
+      } else {
+        for (const id of S) {
+          st.sectors[id].share = st.sectors[id].share ?? 0.2;
+          st.sectors[id].price = st.sectors[id].price ?? (id === 'arquibancada' ? 10 : id === 'cadeira' ? 20 : id === 'premium' ? 40 : id === 'vip' ? 70 : 110);
+        }
+      }
+    }
+    st.comfort = st.comfort ?? { assentos: 70, banheiros: 60, alimentacao: 65, climatizacao: 55, acessibilidade: 55, limpeza: 70, iluminacao: 70, acustica: 60 };
+    st.foodLevel = st.foodLevel ?? 1;
+    st.storeLevel = st.storeLevel ?? 1;
+    st.vipLevel = st.vipLevel ?? 1;
+    st.parking = st.parking ?? { spaces: Math.round(st.capacity * 0.06), price: 8, level: 1 };
+    st.security = st.security ?? 65;
+    st.tech = st.tech ?? { telao: 1, som: 1, wifi: false, app: false, catapulta: false, smartTickets: false };
+    st.boxes = st.boxes ?? { total: Math.max(4, Math.round(st.capacity / 1200)), sold: 0, price: 150000 };
+    if (st.boxes.sold === 0 && st.boxes.total > 0) st.boxes.sold = Math.round(st.boxes.total * 0.6);
+    st.works = st.works ?? [];
+    st.naming = st.naming ?? null;
+    st.namingProposal = st.namingProposal ?? null;
+    st.bookings = st.bookings ?? [];
+    st.dynamicPricing = st.dynamicPricing ?? false;
+    st.lastPriceChange = st.lastPriceChange ?? null;
+    st.history = st.history ?? [];
+    st.value = st.value ?? Math.round(st.capacity * 2100 + st.capacity * (st.reputation ?? 40) * 22);
+    st.eventsHosted = st.eventsHosted ?? 0;
+    st.protestsFired = st.protestsFired ?? 0;
+    st.seasonAccum = st.seasonAccum ?? { attendance: 0, matches: 0, ticket: 0, commercial: 0, costs: 0 };
+  };
+  for (const cl of Object.values(w.clubs) as any[]) {
+    fillStadium(cl.stadium);
+    cl.rivals = cl.rivals ?? [];
+  }
   if (!w.agents) w.agents = {};
   if (!w.scoutReports) w.scoutReports = {};
   if (!w.negotiationHistory) w.negotiationHistory = [];

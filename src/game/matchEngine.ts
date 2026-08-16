@@ -7,6 +7,7 @@ import { RNG, hashString } from '../lib/rng';
 import { overallAt, overallOf } from './overall';
 import { clamp } from '../lib/format';
 import { addDays } from '../lib/date';
+import { stadiumMatchDay, StadiumMatchDay, applyStadiumMatchResult } from './stadium';
 
 // ------------------------------------------------------------
 // Tipos
@@ -315,6 +316,10 @@ export function simulateMatch(world: World, match: Match, opts: SimOptions = {})
 
   const homePower = computeTeamPower(world, match.homeId, homeLineup, 'home', opts);
   const awayPower = computeTeamPower(world, match.awayId, awayLineup, 'away', opts);
+
+  // atmosfera do estádio dá um leve fator casa (torcida empurra o time)
+  const homeAtmo = homeClub.stadium.atmosphere ?? 50;
+  homePower.strength = Math.round(homePower.strength * (1 + (homeAtmo - 50) / 900));
 
   const diff = homePower.strength - awayPower.strength;
   let homeEG = 1.42 + diff * 0.085;
@@ -843,6 +848,15 @@ export function simulateMatch(world: World, match: Match, opts: SimOptions = {})
       }
       nextNarration += 4 + rng.int(0, 7); // intervalos variáveis (4-11 min)
     }
+    // reação da torcida em campo: torcida satisfeita empurra, insatisfeita vaia
+    const stHome = homeClub.stadium;
+    if (stHome.satisfaction >= 75) {
+      events.push({ minute: 14 + rng.int(0, 8), team: 'home', type: 'crowd', detail: '🗣️ A torcida canta sem parar e empurra o time da casa!' });
+      events.push({ minute: 58 + rng.int(0, 10), team: 'home', type: 'crowd', detail: '🔥 O estádio inteiro apoiando — pressão enorme sobre o visitante.' });
+    } else if (stHome.protest >= 55 || stHome.satisfaction < 35) {
+      events.push({ minute: 22 + rng.int(0, 8), team: 'home', type: 'crowd', detail: '📢 Parte do estádio começa a vaiar a diretoria.' });
+      if (stHome.protest >= 72) events.push({ minute: 62 + rng.int(0, 10), team: 'home', type: 'crowd', detail: '😡 Torcedores protestam contra a política de ingressos.' });
+    }
     events.sort((a, b) => a.minute - b.minute);
     if (extraTime) events.push({ minute: 90, type: 'whistle', team: 'home' });
     if (penaltyShootout) events.push({ minute: 120, type: 'whistle', team: 'home', detail: `Pênaltis ${penaltyShootout.home}-${penaltyShootout.away}` });
@@ -1042,11 +1056,9 @@ export function simulateMatch(world: World, match: Match, opts: SimOptions = {})
     attendance: 0,
   };
 
-  // público
-  const capacity = homeClub.stadium.capacity;
-  const occupancy = clamp(0.55 + homeClub.reputation / 200 + match.importance / 400, 0.3, 0.98);
-  const attendance = Math.round(capacity * occupancy * (0.9 + rng.next() * 0.2));
-  stats.attendance = attendance;
+  // público e receitas do estádio (demanda por preço/adversário/forma)
+  const md = stadiumMatchDay(world, homeClub, awayClub, match, rng);
+  stats.attendance = md.attendance;
 
   const substitutions: MatchSubstitution[] = [
     ...homeSubs.map((s) => ({ outId: s.outId, inId: s.inId, minute: s.minute, team: 'home' as const })),
@@ -1069,7 +1081,7 @@ export function simulateMatch(world: World, match: Match, opts: SimOptions = {})
   // ------------------------------------------------------------
   // Aplica resultado ao mundo
   // ------------------------------------------------------------
-  applyMatchToWorld(world, match, result, homeLineup, awayLineup, opts);
+  applyMatchToWorld(world, match, result, homeLineup, awayLineup, opts, md);
   return result;
 }
 
@@ -1083,6 +1095,7 @@ function applyMatchToWorld(
   homeLineup: LineupChoice,
   awayLineup: LineupChoice,
   opts: SimOptions,
+  md: StadiumMatchDay,
 ): void {
   // idempotência: nunca aplica duas vezes o mesmo resultado (evita J/forma/estatísticas duplicadas)
   if (match.played) return;
@@ -1113,12 +1126,12 @@ function applyMatchToWorld(
   if (homeClub.lastResults.length > 8) homeClub.lastResults.shift();
   if (awayClub.lastResults.length > 8) awayClub.lastResults.shift();
 
-  // bilheteria
-  const ticketPrice = homeClub.tier === 'Gigante' ? 45 : homeClub.tier === 'Grande' ? 38 : homeClub.tier === 'Médio' ? 25 : homeClub.tier === 'Pequeno' ? 15 : 8;
-  const gate = Math.round(result.stats.attendance * ticketPrice * 0.62);
-  homeClub.balance += gate;
-  homeClub.financeAccum.revenue += gate;
-  homeClub.financeAccum.expenses += Math.round(result.stats.attendance * 0.8); // custos de operação do jogo
+  // receitas e despesas do estádio no dia de jogo
+  const totalRev = md.ticketRevenue + md.foodRevenue + md.storeRevenue + md.parkingRevenue + md.vipRevenue;
+  homeClub.balance += totalRev - md.matchCosts;
+  homeClub.financeAccum.revenue += totalRev;
+  homeClub.financeAccum.expenses += md.matchCosts;
+  applyStadiumMatchResult(world, homeClub, match, homeWon, awayWon, md);
 
   // efeitos nos jogadores
   const applySide = (playerIds: string[], side: 'home' | 'away', won: boolean, isDraw: boolean, goalsFor: number, goalsAgainst: number) => {

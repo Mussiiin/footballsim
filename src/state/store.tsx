@@ -58,6 +58,7 @@ interface GameStore {
   continueCareer: () => Promise<void>;
   saveNow: () => Promise<void>;
   touch: () => void; // força re-render após mutação
+  mutate: (fn: (c: Career) => void) => void;
   advanceDay: () => DayResult | null;
   advanceToMatch: () => DayResult | null;
   advanceWeek: () => DayResult | null;
@@ -509,6 +510,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     continueCareer,
     saveNow,
     touch,
+    mutate,
     advanceDay,
     advanceToMatch,
     advanceWeek,

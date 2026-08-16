@@ -11,6 +11,7 @@ import { aiBoardEvaluation, aiContractRenewals } from './ai';
 import { aiTransferActivity, executeTransfer, squadOf } from './transfers';
 import { tickNegotiations, aiMarketDeals, generateIncomingOffers, tickIncomingOffers, checkPromises } from './negotiation';
 import { tickArrivals } from './transfers';
+import { tickStadium } from './stadium';
 import { generateDailyTalk } from './playerTalks';
 import { advanceSeason, isSeasonOver, SeasonSummary } from './season';
 import { newsFromMatch } from './news';
@@ -163,6 +164,9 @@ export function simulateOneDay(world: World, career: Career | null, difficulty: 
       }
     }
   }
+
+  // estádio: obras, conservação, torcida, naming, eventos
+  tickStadium(world, career, dayRng);
 
   // simula partidas da IA (não a do usuário)
   const sim = simulateAIMatchesOn(world, career, date, career?.clubId ?? null);

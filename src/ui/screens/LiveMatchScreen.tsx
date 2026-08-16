@@ -10,7 +10,7 @@ const EVENT_ICON: Record<string, string> = {
   goal: '⚽', ownGoal: '⚽', penalty: '⚽', penaltyMiss: '❌', yellow: '🟨', red: '🟥',
   injury: '🩹', sub: '🔄', corner: '🚩', foul: '🟡', save: '🧤', shot: '🎯',
   shotOnTarget: '🎯', offside: '🚩', kickoff: '🏁', whistle: '🛎️', penaltyShootoutGoal: '⚽', penaltyShootoutMiss: '❌',
-  buildUp: '🧭', recovery: '💨', pressure: '🔥', timeWasting: '⏱️', cross: '🎯',
+  buildUp: '🧭', recovery: '💨', pressure: '🔥', timeWasting: '⏱️', cross: '🎯', crowd: '📢',
 };
 
 export function LiveMatchScreen() {

@@ -33,6 +33,9 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').then((reg) => {
       // verificação periódica: usuários que deixam o app aberto recebem a atualização
       setInterval(() => { void reg.update(); }, 60 * 60 * 1000);
+      // ao voltar para a aba, verifica se há versão nova (pega o deploy sem precisar de reload manual)
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) void reg.update(); });
+      window.addEventListener('focus', () => void reg.update());
 
       const showBanner = () => {
         if (updateBanner) return;
@@ -70,6 +73,13 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
           }
         });
       });
+
+      // já existe um SW novo esperando (instalou numa visita anterior)? mostra o
+      // banner na hora — antes, o banner só aparecia se o install acontecesse
+      // com a página aberta, deixando usuários presos na versão antiga.
+      if (reg.waiting && navigator.serviceWorker.controller) {
+        showBanner();
+      }
     }).catch((err) => {
       console.warn('Falha ao registrar service worker:', err);
     });

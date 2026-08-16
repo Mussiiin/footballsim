@@ -155,12 +155,86 @@ export interface Player {
 // ------------------------------------------------------------
 export type ClubTier = 'Gigante' | 'Grande' | 'Médio' | 'Pequeno' | 'Amador';
 
+export type StadiumSectorId = 'arquibancada' | 'cadeira' | 'premium' | 'vip' | 'camarote';
+
+export interface StadiumSector {
+  seats: number;
+  price: number;
+  share: number; // proporção da capacidade (0-1)
+}
+
+export interface StadiumWork {
+  id: string;
+  title: string;
+  detail: string;
+  kind: 'expansion' | 'renovation' | 'comfort' | 'parking' | 'food' | 'store' | 'security' | 'tech' | 'new';
+  cost: number;
+  totalDays: number;
+  daysLeft: number;
+  capacityCut: number;  // redução temporária de capacidade durante a obra (0-1)
+  extraCost: number;    // custo extra mensal durante a obra
+  amount?: number;      // ex.: lugares adicionados na expansão
+}
+
+export interface StadiumNaming {
+  company: string;
+  years: number;
+  yearsLeft: number;
+  annual: number;
+}
+
+export interface StadiumBooking {
+  id: string;
+  title: string;
+  kind: 'show' | 'evento' | 'convencao';
+  date: string;
+  revenue: number;
+}
+
+export interface StadiumHistoryEntry {
+  season: string;
+  attendance: number;
+  occupancy: number;
+  ticketRevenue: number;
+  commercial: number;
+  matchCosts: number;
+  maintenance: number;
+  avgPrice: number;
+  capacity: number;
+  value: number;
+  satisfaction: number;
+}
+
 export interface Stadium {
   name: string;
   capacity: number;
   avgAttendance: number;
-  condition: number;      // 0-100
-  maintenanceCost: number; // mensal
+  condition: number;       // 0-100 conservação
+  maintenanceCost: number;  // mensal
+  reputation: number;       // 0-100
+  satisfaction: number;     // 0-100 satisfação da torcida (preços/experiência)
+  atmosphere: number;       // 0-100
+  protest: number;          // 0-100 descontentamento com preços
+  sectors: Record<StadiumSectorId, StadiumSector>;
+  comfort: Record<'assentos' | 'banheiros' | 'alimentacao' | 'climatizacao' | 'acessibilidade' | 'limpeza' | 'iluminacao' | 'acustica', number>;
+  foodLevel: number;        // 0..3
+  storeLevel: number;       // 0..3
+  vipLevel: number;         // 0..3
+  parking: { spaces: number; price: number; level: number };
+  security: number;         // 0-100
+  tech: { telao: number; som: number; wifi: boolean; app: boolean; catapulta: boolean; smartTickets: boolean };
+  boxes: { total: number; sold: number; price: number };
+  works: StadiumWork[];
+  naming: StadiumNaming | null;
+  namingProposal: StadiumNaming | null;
+  bookings: StadiumBooking[];
+  dynamicPricing: boolean;
+  lastPriceChange: { date: string; pct: number } | null;
+  history: StadiumHistoryEntry[];
+  value: number;
+  eventsHosted: number;
+  protestsFired: number;
+  seasonAccum: { attendance: number; matches: number; ticket: number; commercial: number; costs: number };
 }
 
 export interface Coach {
@@ -232,6 +306,7 @@ export interface Club {
   lastResults: ('W' | 'D' | 'L')[];
   financeHistory: FinanceEntry[];
   lastSeasonPosition: number | null;
+  rivals: string[];         // rivalidades (ids de clubes)
   averageAge: number;  // cache
   squadStrength: number; // cache overall médio
   morale: number;      // cache moral média
@@ -292,6 +367,7 @@ export type MatchEventType =
   | 'goal' | 'ownGoal' | 'penalty' | 'penaltyMiss' | 'assist'
   | 'yellow' | 'red' | 'injury' | 'sub' | 'corner' | 'foul'
   | 'save' | 'shot' | 'shotOnTarget' | 'offside' | 'kickoff' | 'whistle' | 'penaltyShootoutGoal' | 'penaltyShootoutMiss'
+  | 'crowd'
   // narração contextual (construção, recuperação, pressão, defesa)
   | 'buildUp' | 'recovery' | 'pressure' | 'timeWasting' | 'cross';
 
@@ -740,7 +816,7 @@ export interface NewsItem {
   date: string;
   title: string;
   subtitle?: string;
-  category: 'Transferências' | 'Partidas' | 'Mercado' | 'Lesões' | 'Clubes' | 'Seleções' | 'Títulos' | 'Carreira';
+  category: 'Transferências' | 'Partidas' | 'Mercado' | 'Lesões' | 'Clubes' | 'Seleções' | 'Títulos' | 'Carreira' | 'Estádio';
   clubId?: string;
   playerId?: string;
   importance: number; // 0-100

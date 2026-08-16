@@ -18,6 +18,7 @@ import { PlayerTalkScreen } from './ui/screens/PlayerTalkScreen';
 import { NegotiationScreen } from './ui/screens/NegotiationScreen';
 import { RenewalScreen } from './ui/screens/RenewalScreen';
 import { FinancesScreen } from './ui/screens/FinancesScreen';
+import { StadiumScreen } from './ui/screens/StadiumScreen';
 import { TrainingScreen } from './ui/screens/TrainingScreen';
 import { NewsScreen } from './ui/screens/NewsScreen';
 import { ClubScreen } from './ui/screens/ClubScreen';
@@ -91,6 +92,7 @@ function Router() {
     calendar: <CalendarScreen />,
     transfers: <TransfersScreen />,
     finances: <FinancesScreen />,
+    stadium: <StadiumScreen />,
     training: <TrainingScreen />,
     news: <NewsScreen />,
     club: <ClubScreen clubId={career.clubId || undefined} />,
