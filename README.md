@@ -110,3 +110,7 @@ O smoke test simula centenas de partidas e o rollover de três temporadas, verif
 - **Seleções nacionais:** a arquitetura de competições já suporta torneios continentais.
 - **Expansão de estádio, Hall da Fama e recordes globais** — o histórico já é persistido por temporada.
 - **Server-side determinístico:** como o motor é puro, pode ser movido para edge functions para simulação multijogador/anti-cheat.
+
+## Deploy
+
+Publicado no Vercel com deploy automático a partir da branch `main` (repositório [Mussiiin/footballsim](https://github.com/Mussiiin/footballsim)).
