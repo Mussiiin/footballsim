@@ -67,10 +67,15 @@ export function newsFromMatch(world: World, match: Match, result: MatchResult): 
   } else if (result.manOfMatch && result.manOfMatch) {
     const p = world.players[result.manOfMatch];
     if (p && result.homeScore + result.awayScore >= 3) {
+      const momSub = homeWon
+        ? `Destaque na vitória de ${home.name} por ${score}.`
+        : awayWon
+          ? `Destaque na vitória de ${away.name} por ${score}.`
+          : `Destaque no empate entre ${home.name} e ${away.name}, ${score}.`;
       addNews(world, {
         date: match.date,
         title: `${playerName(p)} é o melhor em campo na ${compName}`,
-        subtitle: `Destaque na vitória de ${homeWon ? home.name : away.name} por ${score}.`,
+        subtitle: momSub,
         category: 'Partidas',
         playerId: p.id,
         clubId: p.clubId ?? undefined,

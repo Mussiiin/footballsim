@@ -155,7 +155,8 @@ export function LiveMatchScreen() {
   }
   const shotLeaders = new Map<string, number>();
   for (const e of firstHalfEvents) {
-    if ((e.type === 'shot' || e.type === 'shotOnTarget') && e.playerId) {
+    // gols também contam como finalização (coerente com a estatística "no alvo")
+    if ((e.type === 'shot' || e.type === 'shotOnTarget' || e.type === 'goal' || e.type === 'penalty') && e.playerId) {
       shotLeaders.set(e.playerId, (shotLeaders.get(e.playerId) ?? 0) + 1);
     }
   }

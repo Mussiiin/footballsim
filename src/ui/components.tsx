@@ -205,10 +205,21 @@ export function Tabs({ tabs, active, onChange }: { tabs: { id: string; label: st
 // ------------------------------------------------------------
 // Match result pill
 // ------------------------------------------------------------
-export function ResultPill({ m }: { m: Match }) {
+export function ResultPill({ m, perspective }: { m: Match; perspective?: string }) {
   if (!m.played) return <span className="text-slate-500 text-xs">agendada</span>;
   const hs = m.homeScore ?? 0;
   const as = m.awayScore ?? 0;
+  // Com `perspective` (clube do usuário), o placar é exibido da perspectiva
+  // desse clube: vitória sempre em verde, derrota em vermelho, independente
+  // de mandar/visitar. Sem perspective, mantém o placar casa x fora (usado
+  // em tabelas com os dois times rotulados).
+  if (perspective) {
+    const isHome = m.homeId === perspective;
+    const gf = isHome ? hs : as;
+    const ga = isHome ? as : hs;
+    const color = gf > ga ? 'text-accent' : gf < ga ? 'text-red-400' : 'text-slate-300';
+    return <span className={`font-mono font-bold ${color}`}>{gf}-{ga}</span>;
+  }
   const color = hs > as ? 'text-accent' : hs < as ? 'text-red-400' : 'text-slate-300';
   return <span className={`font-mono font-bold ${color}`}>{hs}-{as}</span>;
 }

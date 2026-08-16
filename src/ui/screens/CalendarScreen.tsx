@@ -106,7 +106,7 @@ export function CalendarScreen() {
                         <span className={`text-[10px] font-semibold w-14 truncate ${m.played ? 'text-slate-600' : 'text-accent'}`}>{m.played ? 'Jogada' : comp?.shortName ?? ''}</span>
                         <span className={`flex-1 truncate text-sm ${isHome ? 'text-slate-200' : 'text-slate-400'}`}>{isHome ? away?.name : home?.name}</span>
                         <span className="text-xs text-slate-500">{isHome ? '🏠' : '✈️'}</span>
-                        <ResultPill m={m} />
+                        <ResultPill m={m} perspective={clubId} />
                       </button>
                     );
                   })}
@@ -128,7 +128,8 @@ export function CalendarScreen() {
                 <div key={m.id} className="flex items-center gap-2 rounded-lg border border-surface-700/50 bg-surface-800/30 p-2.5 text-sm">
                   <span className="text-[10px] text-slate-600 w-16 shrink-0">{formatDateBR(m.date)}</span>
                   <span className={`flex-1 truncate ${isHome ? 'text-slate-200' : 'text-slate-400'}`}>{isHome ? away?.name : home?.name}</span>
-                  <ResultPill m={m} />
+                  <span className="text-xs text-slate-500">{isHome ? '🏠' : '✈️'}</span>
+                  <ResultPill m={m} perspective={clubId} />
                 </div>
               );
             })}
