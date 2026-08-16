@@ -3,7 +3,7 @@ import { useGame } from '../../state/store';
 import { FORMATIONS, FORMATION_LIST, Position, Player, INDIVIDUAL_INSTRUCTIONS, IndividualInstruction, TeamStyle, FormationSlot } from '../../lib/types';
 import { PlayerAvatar, OverallBadge, Modal, EnergyBadge } from '../components';
 import { overallAt, overallOf } from '../../game/overall';
-import { playerName, positionFit, pickBestLineup } from '../../game/matchEngine';
+import { playerName, positionFit, pickBestLineup, playerEnergy } from '../../game/matchEngine';
 import { RNG, hashString } from '../../lib/rng';
 import { POSITION_LABELS } from '../../lib/types';
 
@@ -22,6 +22,17 @@ const STYLE_ITEMS: { key: keyof TeamStyle; label: string; low: string; high: str
 ];
 
 const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
+
+// categorias exibidas no painel de reservas (por posição primária)
+const BENCH_CATEGORIES: { label: string; icon: string; pos: Position[] }[] = [
+  { label: 'Goleiros', icon: '🧤', pos: ['GK'] },
+  { label: 'Laterais', icon: '🛡️', pos: ['LB', 'RB'] },
+  { label: 'Zagueiros', icon: '🧱', pos: ['CB'] },
+  { label: 'Volantes', icon: '⚙️', pos: ['DM'] },
+  { label: 'Meias', icon: '🎯', pos: ['CM', 'AM'] },
+  { label: 'Atacantes e pontas', icon: '⚽', pos: ['LW', 'RW', 'ST', 'CF'] },
+];
+
 
 export function TacticsScreen() {
   const { career, setLineup, navigate, goBack } = useGame();
@@ -43,15 +54,15 @@ export function TacticsScreen() {
   };
 
   /**
-   * Coloca um jogador em uma vaga. Remove o jogador de qualquer vaga anterior
-   * (evita duplicação) e, se a vaga alvo estiver ocupada, troca os dois.
-   * `pos` (opcional) registra uma posição livre no campo (x,y em %).
+   * Coloca um jogador em uma vaga. O jogador movido vai para onde foi solto;
+   * quem ocupava a vaga alvo vai para o banco (NUNCA puxa outro jogador para a
+   * posição que o movido deixou — a vaga antiga fica livre). `pos` (opcional)
+   * registra uma posição livre no campo (x,y em %).
    */
   const assign = (slotId: string, playerId: string, pos?: { x: number; y: number }) => {
     const slots = { ...lineup.slots };
     const positions = { ...(lineup.positions ?? {}) };
-    const targetOccupant = slots[slotId];
-    if (targetOccupant === playerId) {
+    if (slots[slotId] === playerId) {
       if (pos) {
         positions[slotId] = pos;
         setLineup({ ...lineup, slots, positions });
@@ -59,21 +70,45 @@ export function TacticsScreen() {
       setSlotPick(null);
       return;
     }
-    // remove o jogador do slot anterior (se houver)
+    // remove o jogador da vaga anterior (nunca fica em duas vagas)
     const prevSlot = Object.entries(slots).find(([, v]) => v === playerId)?.[0];
     if (prevSlot) {
       delete slots[prevSlot];
       delete positions[prevSlot];
     }
+    // quem estava na vaga alvo sai para o banco (sem trocar de posição)
     slots[slotId] = playerId;
     if (pos) positions[slotId] = pos;
     else delete positions[slotId];
-    // quem ocupava o alvo vai para a vaga deixada pelo jogador (troca), senão vai ao banco
-    if (targetOccupant && prevSlot && targetOccupant !== playerId) {
-      slots[prevSlot] = targetOccupant;
-    }
     setLineup({ ...lineup, slots, positions });
     setSlotPick(null);
+  };
+
+  /** preenche a formação com o melhor jogador disponível por um critério (overall ou energia) */
+  const bestSlotsByScore = (scoreFn: (p: Player) => number): Record<string, string> => {
+    const slots: Record<string, string> = {};
+    const used = new Set<string>();
+    for (const slot of formation) {
+      let best: string | null = null;
+      let bestScore = -Infinity;
+      for (const p of squad) {
+        if (used.has(p.id) || p.injury || p.suspension > 0) continue;
+        const fit = p.position === slot.position ? 3 : p.secondaryPositions.includes(slot.position) ? 2 : 0;
+        // posição domina (nunca 2 goleiros etc.); o critério (overall/energia) desempata dentro da posição
+        const score = fit * 20 + scoreFn(p);
+        if (score > bestScore) { bestScore = score; best = p.id; }
+      }
+      if (best) { slots[slot.id] = best; used.add(best); }
+    }
+    return slots;
+  };
+
+  const pickBestTeam = () => {
+    setLineup({ ...lineup, slots: bestSlotsByScore((p) => overallOf(p)), positions: {} });
+  };
+
+  const pickRestTeam = () => {
+    setLineup({ ...lineup, slots: bestSlotsByScore((p) => playerEnergy(p)), positions: {} });
   };
 
   /** melhor vaga para um ponto (x,y) do campo: prefere vaga vazia e compatível com a posição do jogador */
@@ -206,6 +241,8 @@ export function TacticsScreen() {
           <button onClick={resetPositions} disabled={freePositions === 0} className="btn-ghost !px-3 text-xs" title="Volta os jogadores às posições da formação">
             🎯 Posições padrão{freePositions > 0 ? ` (${freePositions})` : ''}
           </button>
+          <button onClick={pickBestTeam} className="btn-ghost !px-3 text-xs" title="Escala os 11 jogadores de maior overall, respeitando as posições da formação">🏆 Melhor time</button>
+          <button onClick={pickRestTeam} className="btn-ghost !px-3 text-xs" title="Escala os jogadores mais descansados (maior energia)">😴 Time descansado</button>
           <button onClick={restore} className="btn-ghost !px-3 text-xs" title="Escala os melhores jogadores disponíveis na formação atual">↩ Restaurar</button>
           {FORMATION_LIST.map((f) => (
             <button key={f} onClick={() => changeFormation(f)} disabled={busy} className={`badge border px-3 py-1.5 ${lineup.formation === f ? 'bg-accent text-surface-950 border-accent' : 'bg-surface-800 text-slate-300 border-surface-600 hover:border-surface-500'}`}>
@@ -300,24 +337,35 @@ export function TacticsScreen() {
         <div className="lg:col-span-2 space-y-5">
           <div className="card p-5">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Reservas — arraste para o campo</p>
-            <p className="text-[10px] text-slate-600 mb-3">{starters.length} titulares no campo · solte um reserva sobre um titular para trocar · clique na vaga para escolher</p>
-            <div className="flex flex-wrap gap-1.5 max-h-44 overflow-y-auto">
-              {benchPlayers.map((p) => (
-                <div
-                  key={p.id}
-                  draggable={!p.injury && p.suspension <= 0}
-                  onDragStart={(e) => { e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; setDragId(p.id); }}
-                  onDragEnd={() => setDragId(null)}
-                  title={p.injury ? 'Lesionado — não pode ser escalado' : `${p.firstName} ${p.lastName} · ${POSITION_LABELS[p.position]}`}
-                  className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs cursor-grab active:cursor-grabbing transition ${dragId === p.id ? 'border-accent bg-accent/10' : 'border-surface-600 bg-surface-800 hover:border-surface-500'}`}
-                >
-                  <PlayerAvatar player={p} size={22} showPos={false} />
-                  <span className="font-semibold text-slate-300">{p.lastName.slice(0, 14)}</span>
-                  <span className="text-[9px] text-slate-500">{POSITION_LABELS[p.position]}</span>
-                  <OverallBadge player={p} size="sm" />
-                  {p.injury && <span className="text-xs">🩹</span>}
-                </div>
-              ))}
+            <p className="text-[10px] text-slate-600 mb-3">{starters.length} titulares no campo · solte sobre um titular para substituí-lo (ele vai ao banco) · clique na vaga para escolher</p>
+            <div className="max-h-72 overflow-y-auto pr-1">
+              {BENCH_CATEGORIES.map((cat) => {
+                const players = benchPlayers.filter((p) => cat.pos.includes(p.position));
+                if (players.length === 0) return null;
+                return (
+                  <div key={cat.label} className="mb-2">
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-1">{cat.icon} {cat.label} <span className="text-slate-600">({players.length})</span></p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {players.map((p) => (
+                        <div
+                          key={p.id}
+                          draggable={!p.injury && p.suspension <= 0}
+                          onDragStart={(e) => { e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; setDragId(p.id); }}
+                          onDragEnd={() => setDragId(null)}
+                          title={p.injury ? 'Lesionado — não pode ser escalado' : `${p.firstName} ${p.lastName} · ${POSITION_LABELS[p.position]} · Energia ${Math.round(playerEnergy(p))}%`}
+                          className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-xs cursor-grab active:cursor-grabbing transition ${dragId === p.id ? 'border-accent bg-accent/10' : 'border-surface-600 bg-surface-800 hover:border-surface-500'}`}
+                        >
+                          <PlayerAvatar player={p} size={22} showPos={false} />
+                          <span className="font-semibold text-slate-300">{p.lastName.slice(0, 14)}</span>
+                          <span className="text-[9px] text-slate-500">{POSITION_LABELS[p.position]}</span>
+                          <OverallBadge player={p} size="sm" />
+                          {p.injury && <span className="text-xs">🩹</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
