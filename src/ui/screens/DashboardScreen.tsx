@@ -43,7 +43,7 @@ export function DashboardScreen() {
       return;
     }
     if (r?.seasonAdvanced) {
-      setModal('Nova temporada começou! Bem-vindo a ' + world.season + '.');
+      navigate('season-end');
       return;
     }
     setAdvanceResult(r ? `Simulado até ${formatDateBR(r.date)} · ${r.simulated} partida(s)` : null);
@@ -90,6 +90,23 @@ export function DashboardScreen() {
           <button onClick={() => void doAdvance('match')} disabled={!!advancing} className="btn-primary">{advancing === 'match' ? '…' : '⚽ Próxima partida'}</button>
         </div>
       </div>
+
+      {/* intertemporada: temporada encerrada aguardando o usuário iniciar a próxima */}
+      {world.seasonEnded && (
+        <div className="rounded-xl border border-accent/50 bg-accent/10 p-5 animate-fadeIn">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-3xl">🏁</span>
+            <div className="mr-auto">
+              <p className="font-display font-bold text-slate-100">Temporada encerrada — Intertemporada</p>
+              <p className="text-sm text-slate-400">
+                {formatDateBR(world.date)} · Sem partidas. Contrate, venda, renove e prepare o clube.
+                A próxima temporada só começa quando você iniciar.
+              </p>
+            </div>
+            <button onClick={() => navigate('season-end')} className="btn-primary px-6 py-3">🚀 Ver resumo e iniciar próxima temporada</button>
+          </div>
+        </div>
+      )}
 
       {/* mensagem da diretoria */}
       {club.boardMessage && (
@@ -199,7 +216,9 @@ export function DashboardScreen() {
                           <td className="table-td text-center font-display font-bold text-slate-100">{s.points}</td>
                           <td className="table-td text-center text-slate-400">{s.played}</td>
                           <td className={`table-td text-center ${s.gd > 0 ? 'text-accent' : s.gd < 0 ? 'text-red-400' : 'text-slate-400'}`}>{s.gd > 0 ? '+' : ''}{s.gd}</td>
-                          <td className="table-td"><FormRow results={s.form} /></td>
+                          {/* Forma geral (todas as competições) — consistente com o painel "Forma recente":
+                              uma derrota de copa aparece aqui também, e não só no MORAL */}
+                          <td className="table-td"><FormRow results={c?.lastResults ?? s.form} /></td>
                         </tr>
                       );
                     })}

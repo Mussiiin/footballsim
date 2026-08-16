@@ -1,5 +1,12 @@
 import { useGame } from '../../state/store';
 import { isSupabaseConfigured } from '../../lib/supabase';
+import {
+  GAME_VERSION,
+  appliedVersion,
+  isUpdateAvailable,
+  openUpdateModal,
+  openUpdateHistory,
+} from '../../game/updateNotes';
 
 export function SettingsScreen() {
   const { settings, updateSettings, user, logout, navigate, saveNow, lastSaved } = useGame();
@@ -41,6 +48,28 @@ export function SettingsScreen() {
       </div>
 
       <div className="card p-5">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Atualizações</p>
+          <span className="badge bg-accent/15 text-accent border border-accent/30">⚙️ v{GAME_VERSION}</span>
+        </div>
+        <p className="text-sm text-slate-300 mb-3">
+          Versão instalada: <span className="font-mono font-bold text-accent">v{appliedVersion()}</span>
+        </p>
+        {isUpdateAvailable() ? (
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => openUpdateModal()} className="btn-primary !py-2 text-sm">
+              🚀 Atualização disponível
+            </button>
+            <button onClick={() => openUpdateHistory()} className="btn-secondary !py-2 text-sm">
+              📜 Histórico de atualizações
+            </button>
+          </div>
+        ) : (
+          <p className="text-xs text-accent">✅ Jogo atualizado para a versão mais recente.</p>
+        )}
+      </div>
+
+      <div className="card p-5">
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Conta</p>
         <p className="text-sm text-slate-300 mb-1">{user?.name} · {user?.email}</p>
         <p className="text-xs text-slate-500 mb-3">
@@ -54,7 +83,7 @@ export function SettingsScreen() {
       </div>
 
       <div className="card p-5 text-xs text-slate-500 space-y-1">
-        <p>⚙️ FootballSim v0.1 — jogo de gerenciamento de futebol.</p>
+        <p>⚙️ FootballSim v{GAME_VERSION} — jogo de gerenciamento de futebol.</p>
         <p>Os dados fictícios são gerados deterministicamente a partir de seeds. Nenhuma API externa é necessária.</p>
       </div>
     </div>

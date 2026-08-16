@@ -1,0 +1,244 @@
+// ------------------------------------------------------------
+// Sistema de atualizações do FootballSim
+// ------------------------------------------------------------
+// Centraliza a versão do jogo, as patch notes e o controle de
+// versão salvo no navegador. Totalmente separado dos dados de
+// carreira (que ficam no IndexedDB/Supabase).
+//
+// Para lançar um novo patch no futuro: adicione um novo objeto no
+// topo de UPDATE_HISTORY e ajuste GAME_VERSION. O resto é automático.
+// ------------------------------------------------------------
+
+export interface UpdateNoteItem {
+  title: string;
+  description: string;
+}
+
+export interface UpdateNoteVersion {
+  version: string;
+  title: string;
+  date: string;
+  /** Se true, o jogador NÃO pode adiar — precisa atualizar para continuar. */
+  required?: boolean;
+  newFeatures: UpdateNoteItem[];
+  improvements: UpdateNoteItem[];
+  bugFixes: UpdateNoteItem[];
+  football?: UpdateNoteItem[];
+}
+
+/** Versão do build atual do jogo (a mais recente disponível). */
+export const GAME_VERSION = '1.5.0';
+
+/** Versão "instalada" padrão de quem nunca passou por uma atualização. */
+const DEFAULT_APPLIED_VERSION = '1.4.2';
+
+/** Histórico completo de versões (mais recente primeiro). */
+export const UPDATE_HISTORY: UpdateNoteVersion[] = [
+  {
+    version: '1.5.0',
+    title: 'Grande Atualização',
+    date: '16/08/2026',
+    required: false,
+    newFeatures: [
+      {
+        title: 'Aba de Estádio',
+        description: 'Aumente a capacidade, defina o preço dos ingressos e acompanhe a satisfação da torcida e as receitas do clube.',
+      },
+      {
+        title: 'Fim de temporada completo',
+        description: 'Resumo da temporada com finanças, títulos, prêmios e evolução do elenco — e um botão para iniciar a próxima temporada quando você decidir.',
+      },
+      {
+        title: 'Campeonato Brasileiro Série A',
+        description: 'Brasileirão completo integrado ao calendário, classificação, estatísticas, finanças e carreira.',
+      },
+      {
+        title: 'Guerra de propostas',
+        description: 'Clubes rivais cobrem suas ofertas no mercado — você decide cobrir, subir o valor ou desistir.',
+      },
+    ],
+    improvements: [
+      {
+        title: 'Simulação de partidas',
+        description: 'Estatísticas e eventos construídos minuto a minuto, com reação ao placar e ao momento da partida.',
+      },
+      {
+        title: 'IA do mercado',
+        description: 'Clubes da IA negociam entre si, com grandes transferências, notícias e impacto nas finanças.',
+      },
+      {
+        title: 'Táticas',
+        description: 'Monte o melhor time ou o time descansado, arraste jogadores pelo campo e organize as reservas por posição.',
+      },
+    ],
+    bugFixes: [
+      {
+        title: 'Janela de transferências',
+        description: 'Jogadores não chegam mais ao clube com a janela fechada — a validação vale em toda a lógica de transferências.',
+      },
+      {
+        title: 'Tabela e forma recente',
+        description: 'A coluna de forma agora mostra o resultado real do clube em todas as competições, igual ao painel de moral.',
+      },
+      {
+        title: 'Cores dos placares',
+        description: 'Vitória aparece em verde e derrota em vermelho mesmo jogando fora de casa.',
+      },
+      {
+        title: 'Folha salarial',
+        description: 'Renovações, empréstimos e promoções da base agora atualizam corretamente a folha salarial do clube.',
+      },
+    ],
+    football: [
+      {
+        title: 'Novas regras da Copa do Brasil',
+        description: 'Fases de mata-mata nunca mais ficam sem partida marcada — o chaveamento é blindado contra partidas órfãs.',
+      },
+      {
+        title: 'Calendário completo',
+        description: 'Partidas da temporada da 1ª à última rodada, com filtros de jogadas e restantes.',
+      },
+    ],
+  },
+  {
+    version: '1.4.2',
+    title: 'Atualização de Correções',
+    date: '10/08/2026',
+    newFeatures: [],
+    improvements: [],
+    bugFixes: [
+      {
+        title: 'Travamentos de temporada',
+        description: 'Corrigidas partidas órfãs que prendiam o avanço da temporada e do calendário.',
+      },
+      {
+        title: 'Copa do Brasil',
+        description: 'Semifinais e fases futuras nunca mais ficam sem partida marcada.',
+      },
+      {
+        title: 'Fluxo de transferências',
+        description: 'Chegada em etapas: viagem, exames médicos, documentação, contrato e registro.',
+      },
+    ],
+  },
+  {
+    version: '1.4.0',
+    title: 'Mercado e Renovações',
+    date: '02/08/2026',
+    newFeatures: [
+      {
+        title: 'Renovações de contrato',
+        description: 'Converse com jogadores do elenco, negocie salário, bônus e faça promessas.',
+      },
+      {
+        title: 'Promessas',
+        description: 'Acompanhe o cumprimento das promessas ao longo da temporada e lide com as consequências.',
+      },
+      {
+        title: 'Destaques do mercado',
+        description: 'Ranking das maiores negociações, guerras de propostas e avaliações pós-venda da janela.',
+      },
+    ],
+    improvements: [],
+    bugFixes: [],
+  },
+];
+
+export const LATEST_UPDATE: UpdateNoteVersion = UPDATE_HISTORY[0];
+
+// ------------------------------------------------------------
+// Controle de versão salvo no navegador
+// ------------------------------------------------------------
+
+interface UpdateState {
+  /** Versão que o usuário tem "instalada" (aplicada). */
+  appliedVersion: string;
+  /** Última versão cujo popup automático já foi visto/fechado. */
+  viewedVersion: string;
+}
+
+const STORAGE_KEY = 'footballsim_update_state';
+
+function readState(): UpdateState {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<UpdateState>;
+      return {
+        appliedVersion: parsed.appliedVersion || DEFAULT_APPLIED_VERSION,
+        viewedVersion: parsed.viewedVersion || '',
+      };
+    }
+  } catch {
+    /* localStorage indisponível — usa padrões */
+  }
+  return { appliedVersion: DEFAULT_APPLIED_VERSION, viewedVersion: '' };
+}
+
+function writeState(state: UpdateState) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Compara versões x.y.z — retorna <0, 0 ou >0. */
+export function compareVersions(a: string, b: string): number {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const x = pa[i] ?? 0;
+    const y = pb[i] ?? 0;
+    if (x !== y) return x - y;
+  }
+  return 0;
+}
+
+/** Versão que o usuário tem instalada no momento. */
+export function appliedVersion(): string {
+  return readState().appliedVersion;
+}
+
+/** Existe uma versão mais nova que a instalada? (mostra o indicador no menu) */
+export function isUpdateAvailable(): boolean {
+  return compareVersions(readState().appliedVersion, LATEST_UPDATE.version) < 0;
+}
+
+/** O popup automático deve aparecer? (só uma vez por versão, até atualizar) */
+export function shouldShowUpdatePopup(): boolean {
+  const s = readState();
+  return (
+    compareVersions(s.appliedVersion, LATEST_UPDATE.version) < 0 &&
+    compareVersions(s.viewedVersion, LATEST_UPDATE.version) < 0
+  );
+}
+
+/** Botão "Depois" — marca como vista para não reabrir sozinha (o indicador no menu continua). */
+export function dismissUpdatePopup(): void {
+  const s = readState();
+  writeState({ ...s, viewedVersion: LATEST_UPDATE.version });
+}
+
+/** Conclui a atualização — marca a versão como instalada. */
+export function markUpdateApplied(): void {
+  writeState({
+    appliedVersion: LATEST_UPDATE.version,
+    viewedVersion: LATEST_UPDATE.version,
+  });
+}
+
+// ------------------------------------------------------------
+// Abrir o popup de qualquer tela (menu lateral / configurações)
+// ------------------------------------------------------------
+
+export const OPEN_UPDATE_EVENT = 'footballsim:open-update';
+
+export function openUpdateModal(): void {
+  window.dispatchEvent(new CustomEvent(OPEN_UPDATE_EVENT, { detail: { view: 'intro' } }));
+}
+
+export function openUpdateHistory(): void {
+  window.dispatchEvent(new CustomEvent(OPEN_UPDATE_EVENT, { detail: { view: 'history' } }));
+}

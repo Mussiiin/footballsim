@@ -1,5 +1,5 @@
 import {
-  World, Career, Club, Competition, Player, SeasonHistoryEntry, HallOfFameEntry,
+  World, Career, Club, Competition, Player, SeasonHistoryEntry, HallOfFameEntry, SeasonSummary,
   DIFFICULTY_CONFIG,
 } from '../lib/types';
 import { RNG, hashString } from '../lib/rng';
@@ -12,18 +12,6 @@ import { addNews, newsFromTitle, newsFromRetirement, notify } from './news';
 import { isVitalPlayer, squadOf } from './transfers';
 import { resetMatchCounter, leagueFixtures, cupFixtures, continentalFixtures } from './worldgen';
 import { stadiumSeasonReset } from './stadium';
-
-export interface SeasonSummary {
-  season: string;
-  leagues: { competitionId: string; name: string; champion: string; runnerUp: string; championId: string }[];
-  cups: { competitionId: string; name: string; champion: string; championId: string; runnerUp: string }[];
-  continental: { competitionId: string; name: string; champion: string; championId: string; runnerUp: string } | null;
-  topScorers: { playerId: string; name: string; clubName: string; goals: number }[];
-  promoted: { clubId: string; from: string; to: string }[];
-  relegated: { clubId: string; from: string; to: string }[];
-  retired: { name: string; clubName: string; age: number }[];
-  positions: Record<string, number>;
-}
 
 function nextSeason(season: string): string {
   const y = Number(season.slice(0, 4));
@@ -125,6 +113,8 @@ function processContracts(world: World, career: Career | null): void {
       if (club && !club.isUserControlled && isVitalPlayer(world, p)) {
         p.contract.until = `${Number(seasonEnd.slice(0, 4)) + rngInt(2, 4)}-06-30`;
         p.contract.wage = Math.round(p.contract.wage * 1.1);
+        // salário aumentou → mantém a folha salarial do clube consistente
+        if (club) refreshClubCaches(club, squadOf(world, club.id));
         continue;
       }
       if (club?.isUserControlled && career && isVitalPlayer(world, p)) {
@@ -344,9 +334,12 @@ function setupNewSeason(world: World): void {
 }
 
 // ------------------------------------------------------------
-// Ciclo completo
+// Ciclo completo — dividido em duas fases:
+//  finalizeSeason  → encerra a temporada atual (resumo, prêmios, desenvolvimento, histórico)
+//  startNextSeason → monta a temporada seguinte (calendário, promoções/rebaixamentos)
+// A separação permite que o jogador veja o resumo e fique na intertemporada antes de avançar.
 // ------------------------------------------------------------
-export function advanceSeason(world: World, career: Career | null, difficulty: Career['difficulty']): SeasonSummary {
+export function finalizeSeason(world: World, career: Career | null, difficulty: Career['difficulty']): SeasonSummary {
   const summary: SeasonSummary = {
     season: world.season,
     leagues: [],
@@ -435,6 +428,22 @@ export function advanceSeason(world: World, career: Career | null, difficulty: C
     retired: retired.map((r) => ({ playerName: r.name, clubName: r.clubName, age: r.age })),
   });
 
+  // marca a intertemporada: a temporada atual está encerrada, aguardando o usuário
+  // iniciar a próxima (startNextSeason) — nunca avança sozinho.
+  world.seasonEnded = true;
+  world.seasonEndSummary = summary;
+
+  return summary;
+}
+
+/**
+ * Monta a temporada seguinte. Deve ser chamado APENAS pelo usuário (botão "Iniciar próxima
+ * temporada"), após ele analisar o resumo e fazer o que quiser na intertemporada.
+ */
+export function startNextSeason(world: World, career: Career | null, difficulty: Career['difficulty']): void {
+  const summary = world.seasonEndSummary;
+  if (!summary) return;
+
   // nova temporada
   setupNewSeason(world);
 
@@ -492,7 +501,9 @@ export function advanceSeason(world: World, career: Career | null, difficulty: C
   // regenera calendário
   regenerateCalendar(world);
 
-  return summary;
+  // sai da intertemporada
+  world.seasonEnded = false;
+  world.seasonEndSummary = null;
 }
 
 function regenerateCalendar(world: World): void {

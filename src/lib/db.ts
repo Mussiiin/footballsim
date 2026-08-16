@@ -192,6 +192,9 @@ function migrateCareer(c: Career): Career {
   }
   c.scouted = c.scouted ?? [];
   c.promises = c.promises ?? [];
+  // estado de fim de temporada (intertemporada) — saves antigos não o tinham
+  w.seasonEnded = w.seasonEnded ?? false;
+  w.seasonEndSummary = w.seasonEndSummary ?? null;
   return c;
 }
 

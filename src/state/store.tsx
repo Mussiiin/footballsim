@@ -6,7 +6,8 @@ import { createCareer, acceptJobOffer, sackManager } from '../game/career';
 import { advanceToNextMatch, playUserMatch, simulateOneDay, finishMatchDay, DayResult } from '../game/sim';
 import { negotiateTransfer, executeTransfer, NegotiationResult, releasePlayer } from '../game/transfers';
 import { investInYouthFacility, promoteYouthPlayer, releaseYouthPlayer } from '../game/development';
-import { SeasonSummary } from '../game/season';
+import { SeasonSummary } from '../lib/types';
+import { startNextSeason as runStartNextSeason } from '../game/season';
 import {
   scoutPlayer as runScout, startNegotiation as runStartNegotiation,
   sendClubOffer, respondToSeller, sendWageOffer, respondToPlayer, respondToBidWar,
@@ -64,6 +65,7 @@ interface GameStore {
   advanceWeek: () => DayResult | null;
   playMatch: () => Match | null;
   finishDay: () => DayResult | null;
+  startNextSeason: () => void;
   setLineup: (l: TeamSetup) => void;
   setTrainingFocus: (f: TrainingFocus) => void;
   proposeTransfer: (playerId: string, fee: number, wage: number) => NegotiationResult;
@@ -249,7 +251,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     if (!c) return;
     careerRef.current = c;
     setCareer({ ...c });
-    navigateRoot('dashboard');
+    // save em intertemporada: restaura a tela de resumo da temporada que acabou
+    if (c.world.seasonEnded && c.world.seasonEndSummary) {
+      setSeasonSummary(c.world.seasonEndSummary);
+      navigateRoot('season-end');
+    } else {
+      navigateRoot('dashboard');
+    }
   }, [navigateRoot]);
 
   const deleteCareer = useCallback(async (id: string) => {
@@ -325,6 +333,16 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     handleSeason(r);
     return r;
   }, [mutate, handleSeason]);
+
+  const startNextSeason = useCallback(() => {
+    if (!careerRef.current) return;
+    const c = careerRef.current;
+    if (!c.world.seasonEnded) return;
+    runStartNextSeason(c.world, c, c.difficulty);
+    mutate(() => { void c; });
+    setSeasonSummary(null);
+    navigateRoot('dashboard');
+  }, [mutate, navigateRoot]);
 
   const setLineup = useCallback((l: TeamSetup) => {
     mutate((c) => { c.lineup = l; });
@@ -516,6 +534,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     advanceWeek,
     playMatch,
     finishDay,
+    startNextSeason,
     setLineup,
     setTrainingFocus,
     proposeTransfer,

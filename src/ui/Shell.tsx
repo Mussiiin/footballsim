@@ -3,11 +3,12 @@ import { useGame } from '../state/store';
 import { formatDateBR, WEEKDAYS_SHORT } from '../lib/date';
 import {
   LayoutDashboard, Users, ClipboardList, Trophy, CalendarDays, ArrowLeftRight, Landmark,
-  Wallet, Dumbbell, Newspaper, Building2, Medal, Settings, Menu, X, Bell, Briefcase, ChevronRight,
+  Wallet, Dumbbell, Newspaper, Building2, Medal, Settings, Menu, X, Bell, Briefcase, ChevronRight, Rocket,
 } from 'lucide-react';
 import { ClubCrest, PlayerAvatar } from './components';
 import { nextMatchForClub } from '../game/competitions';
 import { overallOf } from '../game/overall';
+import { isUpdateAvailable, openUpdateModal } from '../game/updateNotes';
 
 interface NavItem {
   id: string;
@@ -91,6 +92,15 @@ export function Shell({ children, active }: { children: React.ReactNode; active:
           </button>
         )}
         <div className="pt-3 mt-3 border-t border-surface-700/60 space-y-0.5">
+          {isUpdateAvailable() && (
+            <button
+              onClick={() => { openUpdateModal(); setOpen(false); }}
+              className="w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gold hover:bg-gold/10 transition"
+            >
+              <Rocket size={17} /> Atualização disponível
+              <span className="ml-auto text-[10px] font-bold bg-gold text-surface-950 rounded-full px-1.5 py-0.5">NOVA</span>
+            </button>
+          )}
           <button onClick={() => { navigate('settings'); setOpen(false); }} className="w-full flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 hover:bg-surface-800 hover:text-slate-200 transition">
             <Settings size={17} /> Configurações
           </button>

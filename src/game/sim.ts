@@ -13,7 +13,8 @@ import { tickNegotiations, aiMarketDeals, generateIncomingOffers, tickIncomingOf
 import { tickArrivals } from './transfers';
 import { tickStadium } from './stadium';
 import { generateDailyTalk } from './playerTalks';
-import { advanceSeason, isSeasonOver, SeasonSummary } from './season';
+import { finalizeSeason, isSeasonOver } from './season';
+import { SeasonSummary } from '../lib/types';
 import { newsFromMatch } from './news';
 import { evaluateBoard, onSeasonEnd, checkAchievements } from './career';
 import { RNG, hashString } from '../lib/rng';
@@ -206,11 +207,16 @@ export function simulateOneDay(world: World, career: Career | null, difficulty: 
   // empréstimos: retorno ao clube de origem e gatilhos de compra obrigatória
   for (const p of Object.values(world.players)) {
     if (p.isLoan && p.loanUntil && world.date > p.loanUntil) {
+      const loanClub = p.clubId ? world.clubs[p.clubId] : null;
       const parent = p.parentClubId;
       p.clubId = parent;
       p.isLoan = false;
       p.parentClubId = null;
       p.loanUntil = null;
+      // os dois clubes mudam de elenco: o clube do empréstimo deixa de pagar o
+      // salário e o de origem volta a contar com o jogador — ambos precisam de
+      // folha salarial/força atualizadas
+      if (loanClub) refreshClubCaches(loanClub, squadOf(world, loanClub.id));
       if (parent) {
         const parentClub = world.clubs[parent];
         if (parentClub) refreshClubCaches(parentClub, squadOf(world, parent));
@@ -264,9 +270,10 @@ export function simulateOneDay(world: World, career: Career | null, difficulty: 
     }
   }
 
-  // fim de temporada
-  if (isSeasonOver(world)) {
-    const summary = advanceSeason(world, career, difficulty);
+  // fim de temporada: finaliza (resumo/prêmios/histórico) mas NÃO inicia a próxima
+  // sozinho — o usuário decide na intertemporada (botão "Iniciar próxima temporada").
+  if (isSeasonOver(world) && !world.seasonEnded) {
+    const summary = finalizeSeason(world, career, difficulty);
     result.seasonAdvanced = true;
     result.date = world.date;
     result.summary = summary;
@@ -295,6 +302,11 @@ export function advanceToNextMatch(
   difficulty: Career['difficulty'],
   maxDays = 400,
 ): { days: number; userMatch: Match | null; seasonAdvanced: boolean; lastDay: DayResult | null } {
+  // intertemporada: temporada encerrada aguardando o usuário iniciar a próxima —
+  // não há partidas e o avanço automático de temporada está desligado.
+  if (world.seasonEnded) {
+    return { days: 0, userMatch: null, seasonAdvanced: false, lastDay: null };
+  }
   let days = 0;
   let seasonAdvanced = false;
   let lastDay: DayResult | null = null;
@@ -306,11 +318,9 @@ export function advanceToNextMatch(
       return { days, userMatch: day.userMatch, seasonAdvanced, lastDay: day };
     }
     if (day.seasonAdvanced) {
-      seasonAdvanced = true;
-      const next = nextMatchForClub(world, career.clubId, world.date);
-      if (!next) return { days, userMatch: null, seasonAdvanced, lastDay: day };
-      // continua avançando para a próxima partida da nova temporada
-      continue;
+      // a temporada acabou: para aqui — o usuário vê o resumo e decide quando iniciar
+      // a próxima (botão "Iniciar próxima temporada"). Nada avança sozinho.
+      return { days, userMatch: null, seasonAdvanced, lastDay: day };
     }
   }
   return { days, userMatch: nextMatchForClub(world, career.clubId, world.date), seasonAdvanced, lastDay };
@@ -323,8 +333,8 @@ export function finishMatchDay(world: World, career: Career, difficulty: Career[
   syncBrackets(world);
   let seasonAdvanced = false;
   let summary: SeasonSummary | undefined;
-  if (isSeasonOver(world)) {
-    summary = advanceSeason(world, career, difficulty);
+  if (isSeasonOver(world) && !world.seasonEnded) {
+    summary = finalizeSeason(world, career, difficulty);
     seasonAdvanced = true;
     if (career) {
       onSeasonEnd(career, summary);

@@ -11,7 +11,7 @@ import { positionOf } from './competitions';
 import { clamp } from '../lib/format';
 import { estimateWage } from './overall';
 import { notify } from './news';
-import { SeasonSummary } from './season';
+import { SeasonSummary } from '../lib/types';
 import { COUNTRIES } from './names';
 import { RecruitmentOfficer, DIFFICULTY_CONFIG as DFC } from '../lib/types';
 

@@ -1118,6 +1118,8 @@ export function completeRenewal(world: World, career: Career, renId: string): Re
   ren.status = 'assinada';
   ren.mood = '😄 Muito satisfeito';
   ren.messages.push(msg('system', `Contrato renovado até ${p.contract.until} por €${(ren.wage / 1000).toFixed(0)}k/sem.`, world.date));
+  // o salário mudou → mantém a folha salarial do clube consistente
+  refreshClubCaches(club, squadOf(world, career.clubId));
 
   addNews(world, {
     date: world.date,
@@ -1495,6 +1497,9 @@ export function signDeal(world: World, career: Career, negId: string): SigningRe
     p.contract.bonus = neg.bonus;
     p.contract.signedAt = world.date;
   }
+  // o salário final (principalmente em empréstimos) pode diferir do definido no
+  // executeTransfer — atualiza a folha do comprador para manter a consistência
+  refreshClubCaches(buyer, squadOf(world, neg.buyerClubId));
   p.transferRequested = false;
   if (neg.kind !== 'loan') {
     p.loanListed = false;

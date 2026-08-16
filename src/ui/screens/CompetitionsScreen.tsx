@@ -380,7 +380,8 @@ function LeagueView({ comp, world, onClub, isMine, userClubId }: { comp: Competi
                       <td className="table-td text-center text-slate-400">{s.ga}</td>
                       <td className={`table-td text-center ${s.gd > 0 ? 'text-accent' : s.gd < 0 ? 'text-red-400' : 'text-slate-400'}`}>{s.gd > 0 ? '+' : ''}{s.gd}</td>
                       <td className="table-td text-center text-slate-400">{aproveitamento}%</td>
-                      <td className="table-td"><FormRow results={s.form} /></td>
+                      {/* Forma geral (todas as competições) — consistente com o painel "Forma recente" do Painel */}
+                      <td className="table-td"><FormRow results={club?.lastResults ?? s.form} /></td>
                     </tr>
                   );
                 })}
@@ -425,7 +426,8 @@ function LeagueView({ comp, world, onClub, isMine, userClubId }: { comp: Competi
                     <span className="truncate">{home.shortName}</span>
                     <ClubCrest club={home} size={18} />
                   </button>
-                  <span className="w-14 text-center shrink-0"><ResultPill m={m} /></span>
+                  {/* cor pela perspectiva do clube do usuário quando ele joga nesta partida */}
+                  <span className="w-14 text-center shrink-0"><ResultPill m={m} colorFor={userClubId} /></span>
                   <button onClick={() => onClub(m.awayId)} className="flex items-center gap-1.5 text-slate-300 hover:text-white min-w-0 flex-1">
                     <ClubCrest club={away} size={18} />
                     <span className="truncate">{away.shortName}</span>

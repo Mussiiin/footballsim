@@ -973,6 +973,8 @@ export function generateWorld(seed: string, season = '2026/27'): World {
     },
     generationCount: 0,
     seasonEvents: [],
+    seasonEnded: false,
+    seasonEndSummary: null,
     leagueMatches: {},
     cupMatches: {},
     continentalMatches: {},

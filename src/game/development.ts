@@ -330,6 +330,9 @@ export function advanceYouthSeason(world: World, career: Career | null): void {
         }
       }
     }
+    // promovidos entram no elenco profissional → folha salarial, força e idade
+    // média do clube precisam ser recalculadas
+    refreshClubCaches(club, Object.values(world.players).filter((x) => x.clubId === club.id && x.status === 'active'));
 
     // nova fornada da temporada
     const intake = generateYouthIntake(world, club.id);

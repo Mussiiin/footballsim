@@ -877,6 +877,18 @@ export interface TransferWindow {
   winter: { start: string; end: string };
 }
 
+export interface SeasonSummary {
+  season: string;
+  leagues: { competitionId: string; name: string; champion: string; runnerUp: string; championId: string }[];
+  cups: { competitionId: string; name: string; champion: string; championId: string; runnerUp: string }[];
+  continental: { competitionId: string; name: string; champion: string; championId: string; runnerUp: string } | null;
+  topScorers: { playerId: string; name: string; clubName: string; goals: number }[];
+  promoted: { clubId: string; from: string; to: string }[];
+  relegated: { clubId: string; from: string; to: string }[];
+  retired: { name: string; clubName: string; age: number }[];
+  positions: Record<string, number>;
+}
+
 export interface World {
   version: number;
   seed: string;
@@ -907,6 +919,10 @@ export interface World {
   windows: TransferWindow;
   generationCount: number;
   seasonEvents: { date: string; text: string }[];
+  /** true quando a última partida da temporada terminou e a próxima ainda não foi iniciada (intertemporada). */
+  seasonEnded: boolean;
+  /** resumo da temporada que acabou (persistido p/ exibir na tela de fim de temporada após reload). */
+  seasonEndSummary: SeasonSummary | null;
   leagueMatches: Record<string, Match[]>;
   cupMatches: Record<string, CupMatchStore>;
   continentalMatches: Record<string, ContinentalMatchStore>;

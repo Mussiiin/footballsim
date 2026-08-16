@@ -2,6 +2,7 @@
 import { generateWorld } from '../src/game/worldgen';
 import { createCareer } from '../src/game/career';
 import { advanceToNextMatch, playUserMatch, simulateOneDay, finishMatchDay } from '../src/game/sim';
+import { startNextSeason } from '../src/game/season';
 import { simulateMatch, fillUserLineup } from '../src/game/matchEngine';
 import { negotiateTransfer, executeTransfer, tickArrivals, squadOf } from '../src/game/transfers';
 import { generateDailyTalk, startManagerTalk, respondTalk } from '../src/game/playerTalks';
@@ -566,12 +567,12 @@ let guard = 0;
 let lastSeason = career.world.season;
 while (seasonsDone < 3 && guard < 4000) {
   guard++;
-  const day = advanceToNextMatch(career.world, career, 'Normal');
-  if (day.userMatch) {
-    playUserMatch(career.world, career, 'Normal');
-    finishMatchDay(career.world, career, 'Normal');
-  }
-  if (career.world.season !== lastSeason) {
+  // fim de temporada: a temporada NÃO avança sozinha — o usuário decide quando
+  // iniciar a próxima (equivalente ao botão "Iniciar próxima temporada").
+  // As verificações da nova temporada rodam imediatamente após o setup, antes
+  // de qualquer partida ser jogada (estado limpo: calendário novo e tabela zerada).
+  if (career.world.seasonEnded) {
+    startNextSeason(career.world, career, 'Normal');
     lastSeason = career.world.season;
     seasonsDone++;
     console.log(`  ✅ Temporada ${career.world.season} iniciada (${career.world.seasonNumber})`);
@@ -590,6 +591,11 @@ while (seasonsDone < 3 && guard < 4000) {
     const st = career.world.competitions['england_L1'].standings;
     check('tabela zerada', st.every((r) => r.played === 0));
     check('seasons flag incrementado', career.flags.seasons === seasonsDone);
+  }
+  const day = advanceToNextMatch(career.world, career, 'Normal');
+  if (day.userMatch) {
+    playUserMatch(career.world, career, 'Normal');
+    finishMatchDay(career.world, career, 'Normal');
   }
 }
 check('3 temporadas completadas', seasonsDone >= 3, `(guard: ${guard})`);
@@ -632,9 +638,15 @@ check('recorde da janela registrado', career.world.windowRecordFee > 0, `(€${(
 const sampleClubs = Object.values(career.world.clubs).slice(0, 12);
 let wageOk = true;
 for (const c of sampleClubs) {
-  const squad = Object.values(career.world.players).filter((p) => p.clubId === c.id && p.status === 'active');
+  // jogadores em trânsito (arrivingUntil) ainda não estão registrados — a folha
+  // só passa a incluir o salário após o registro (mesma regra do squadOf)
+  const squad = Object.values(career.world.players).filter((p) => p.clubId === c.id && p.status === 'active' && !p.arrivingUntil);
   const computed = squad.reduce((s, p) => s + (p.contract ? p.contract.wage * 4.33 : 0), 0);
-  if (Math.abs(computed - c.wageBill) > 2000) { wageOk = false; break; }
+  if (Math.abs(computed - c.wageBill) > 2000) {
+    wageOk = false;
+    console.log(`    [dbg] folha ${c.name}: wageBill=${c.wageBill} vs computed=${Math.round(computed)} (dif=${Math.round(computed - c.wageBill)}) squad=${squad.length}`);
+    break;
+  }
 }
 check('folha salarial atualizada após transferências', wageOk);
 
@@ -654,9 +666,11 @@ console.log('🛬 Testando chegada de contratação...');
     check('jogador em trânsito fora do elenco', !squadOf(w, toClub).some((x) => x.id === target.id));
     if (pending) {
       // sistema em etapas: viagem → exames → documentação → contrato → registro
-      // avança dia a dia até o registro concluir (ou cancelar)
+      // avança dia a dia até o registro concluir. Se a janela estiver fechada, o
+      // jogador entra em 'awaiting_window' e só registra quando ela abrir — o
+      // loop segue até atravessar a próxima janela.
       let guard = 0;
-      while (pending.transferStatus === 'in_transit' && guard < 40) {
+      while (pending.transferStatus !== 'completed' && guard < 450) {
         w.date = addDays(w.date, 1);
         tickArrivals(w, career);
         guard++;

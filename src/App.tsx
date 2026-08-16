@@ -1,5 +1,11 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { GameProvider, useGame } from './state/store';
+import { UpdateModal } from './ui/UpdateModal';
+import {
+  shouldShowUpdatePopup,
+  dismissUpdatePopup,
+  OPEN_UPDATE_EVENT,
+} from './game/updateNotes';
 import { HomeScreen } from './ui/screens/HomeScreen';
 import { AuthScreen } from './ui/screens/AuthScreen';
 import { NewCareerScreen } from './ui/screens/NewCareerScreen';
@@ -116,10 +122,44 @@ function Router() {
   return <Shell active={route}>{screen}</Shell>;
 }
 
+function UpdateGate() {
+  const [open, setOpen] = useState(false);
+  const [forceView, setForceView] = useState<'intro' | 'history' | undefined>(undefined);
+  const checkedOnce = useRef(false);
+
+  useEffect(() => {
+    // Abre automaticamente uma vez por versão, logo após carregar o jogo.
+    if (!checkedOnce.current) {
+      checkedOnce.current = true;
+      if (shouldShowUpdatePopup()) setOpen(true);
+    }
+    // Menu/configurações podem abrir o popup a qualquer momento.
+    const onOpen = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { view?: 'intro' | 'history' } | undefined;
+      setForceView(detail?.view);
+      setOpen(true);
+    };
+    window.addEventListener(OPEN_UPDATE_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_UPDATE_EVENT, onOpen);
+  }, []);
+
+  return (
+    <UpdateModal
+      open={open}
+      forceView={forceView}
+      onClose={() => {
+        dismissUpdatePopup();
+        setOpen(false);
+      }}
+    />
+  );
+}
+
 export default function App() {
   return (
     <GameProvider>
       <Router />
+      <UpdateGate />
     </GameProvider>
   );
 }

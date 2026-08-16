@@ -179,7 +179,8 @@ export function CalendarScreen() {
                         {m.homeId === clubId && <span className="text-[9px] text-slate-500">🏠</span>}
                       </div>
                     </td>
-                    <td className="table-td text-center"><ResultPill m={m} /></td>
+                    {/* cor pela perspectiva do clube do usuário: vitória em verde mesmo fora de casa */}
+                    <td className="table-td text-center"><ResultPill m={m} colorFor={clubId} /></td>
                     <td className="table-td">
                       <div className="flex items-center gap-1.5 justify-end">
                         {m.awayId === clubId && <span className="text-[9px] text-slate-500">✈️</span>}
