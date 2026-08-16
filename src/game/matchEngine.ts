@@ -1229,6 +1229,19 @@ function applyMatchToWorld(
   applySide(allHomeIds, 'home', homeWon, draw, result.homeScore, result.awayScore);
   applySide(allAwayIds, 'away', awayWon, draw, result.awayScore, result.homeScore);
 
+  // cumprimento de suspensão: cada partida disputada pelo clube serve uma
+  // partida de suspensão para quem estava suspenso (e não entrou em campo).
+  // Quem levou vermelho NESTA partida não conta (estava em campo) — cumpre na
+  // próxima. Antes a suspensão nunca decrescia e o jogador ficava fora para sempre.
+  const playedThisMatch = new Set([...allHomeIds, ...allAwayIds]);
+  for (const clubId of [match.homeId, match.awayId]) {
+    for (const p of Object.values(world.players)) {
+      if (p.clubId === clubId && p.suspension > 0 && !playedThisMatch.has(p.id)) {
+        p.suspension -= 1;
+      }
+    }
+  }
+
   // lesões
   maybeInjure(world, allHomeIds, match);
   maybeInjure(world, allAwayIds, match);

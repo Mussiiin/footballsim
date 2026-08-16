@@ -260,6 +260,7 @@ function updateRecordsAndHall(world: World): void {
 // ------------------------------------------------------------
 function setupNewSeason(world: World): void {
   const newSeason = nextSeason(world.season);
+  const prevSeason = world.season; // temporada que acaba de terminar (para o histórico do estádio)
   const seasonYear = Number(newSeason.slice(0, 4));
 
   // comprime: mantém só partidas do clube do usuário e apaga o resto
@@ -316,7 +317,7 @@ function setupNewSeason(world: World): void {
     // forma dos clubes começa zerada na nova temporada (não herda resultados antigos)
     club.lastResults = [];
     // estádio: histórico da temporada, camarotes e naming rights renovam
-    stadiumSeasonReset(world, club);
+    stadiumSeasonReset(world, club, prevSeason);
   }
 
   // atualiza clubes: ligas após promoção/rebaixamento

@@ -396,13 +396,13 @@ export function acceptNaming(world: World, club: Club): void {
   }
 }
 
-export function negotiateNaming(world: World, club: Club): void {
+export function negotiateNaming(world: World, club: Club, career: Career | null): void {
   const p = club.stadium.namingProposal;
   if (!p) return;
   const rng = new RNG((Math.random() * 1e9) | 0);
   const bump = rng.float(0.06, 0.22);
   p.annual = Math.round(p.annual * (1 + bump) / 250_000) * 250_000;
-  if (club.isUserControlled) notify({ text: '' } as never, `${p.company} aceitou aumentar para €${(p.annual / 1e6).toLocaleString('pt-BR')}M por ano.`, 'success', '🤝');
+  if (club.isUserControlled && career) notify(career, `${p.company} aceitou aumentar para €${(p.annual / 1e6).toLocaleString('pt-BR')}M por ano.`, 'success', '🤝');
 }
 
 // ------------------------------------------------------------
@@ -532,11 +532,11 @@ function fireProtest(world: World, club: Club, date: string, career: Career | nu
 // ------------------------------------------------------------
 // Fechamento de temporada
 // ------------------------------------------------------------
-export function stadiumSeasonReset(world: World, club: Club): void {
+export function stadiumSeasonReset(world: World, club: Club, season: string): void {
   const st = club.stadium;
   const n = Math.max(1, st.seasonAccum.matches);
   st.history.push({
-    season: world.season,
+    season,
     attendance: Math.round(st.seasonAccum.attendance / n),
     occupancy: Math.round((st.seasonAccum.attendance / n / Math.max(1, effectiveCapacity(st))) * 100),
     ticketRevenue: st.seasonAccum.ticket,

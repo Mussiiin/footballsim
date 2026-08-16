@@ -153,7 +153,7 @@ export function PlayerScreen({ playerId }: { playerId: string }) {
             {p.contract && (
               <div className="mt-3 pt-3 border-t border-surface-700/60 space-y-2">
                 <p className="text-[10px] text-slate-500">
-                  {daysBetween(p.contract.until, career.world.date) <= 730
+                  {daysBetween(career.world.date, p.contract.until) <= 730
                     ? '⚠️ Contrato termina em menos de 2 anos — renove para evitar perder o jogador de graça.'
                     : 'Contrato com mais de 2 anos — renovação antecipada possível.'}
                 </p>

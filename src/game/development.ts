@@ -263,7 +263,7 @@ export function promoteYouthPlayer(world: World, career: Career | null, playerId
     p.morale = 78;
     p.condition = 96;
     p.fatigue = 4;
-    updatePlayerAverages(p);
+    updatePlayerAverages(p, world.date);
     world.players[p.id] = p;
 
     const club = world.clubs[clubId];
@@ -322,7 +322,7 @@ export function advanceYouthSeason(world: World, career: Career | null): void {
         p.morale = 78;
         p.condition = 96;
         p.fatigue = 4;
-        updatePlayerAverages(p);
+        updatePlayerAverages(p, world.date);
         world.players[p.id] = p;
         if (club.isUserControlled && career) {
           career.flags.youthPromoted++;

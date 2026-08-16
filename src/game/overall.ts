@@ -134,7 +134,7 @@ export function bestElevenOverall(players: Player[]): number {
   return Math.round((top.reduce((s, p) => s + overallOf(p), 0)) / top.length);
 }
 
-export function updatePlayerAverages(p: Player): void {
+export function updatePlayerAverages(p: Player, today: string): void {
   p.avgRating = p.seasonStats.ratingCount > 0
     ? p.seasonStats.ratingSum / p.seasonStats.ratingCount
     : 6.5;
@@ -143,7 +143,7 @@ export function updatePlayerAverages(p: Player): void {
     p.age,
     p.potential,
     p.reputation,
-    p.contract ? contractYearsLeft(p.contract.until, '') : 0,
+    p.contract ? contractYearsLeft(p.contract.until, today) : 0,
   );
 }
 

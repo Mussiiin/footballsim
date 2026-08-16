@@ -95,7 +95,7 @@ export function StadiumScreen() {
     mutate((c) => { c.world.clubs[c.clubId].stadium.namingProposal = null; });
   };
   const negotiateName = () => {
-    mutate((c) => negotiateNaming(c.world, c.world.clubs[c.clubId]));
+    mutate((c) => negotiateNaming(c.world, c.world.clubs[c.clubId], c));
   };
 
   return (

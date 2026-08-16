@@ -139,7 +139,7 @@ export function createCareer(
   manager.clubId = clubId;
   manager.employed = true;
   manager.status = 'active';
-  manager.salary = Math.round(estimateWage(club.reputation, 48, manager.reputation) * (1 + difficulty === 'Fácil' ? 0.3 : 0));
+  manager.salary = Math.round(estimateWage(club.reputation, 48, manager.reputation) * (1 + (difficulty === 'Fácil' ? 0.3 : 0)));
 
   const lineup = initialLineup(world, clubId, manager.style);
 

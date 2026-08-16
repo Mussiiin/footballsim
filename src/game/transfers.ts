@@ -14,7 +14,8 @@ let transferCounter = 0;
 export function sellingPrice(world: World, player: Player, club: { balance: number; wageBill: number } | null | undefined): number {
   let mult = 1.0;
   if (player.contract) {
-    const monthsLeft = daysBetween(player.contract.until, world.date) / 30;
+    // dias restantes de contrato: daysBetween(a, b) = b - a, então (hoje, fim) é positivo
+    const monthsLeft = daysBetween(world.date, player.contract.until) / 30;
     if (monthsLeft < 6) mult *= 0.35;
     else if (monthsLeft < 12) mult *= 0.6;
     else if (monthsLeft < 24) mult *= 0.85;
@@ -159,7 +160,8 @@ export function executeTransfer(world: World, career: Career | null, exec: Trans
     p.loanOptionFee = 0;
     p.loanObligationGames = 0;
     if (p.contract) {
-      const years = Math.max(1, Math.round(daysBetween(p.contract.until, world.date) / 365));
+      // anos restantes reais do contrato atual (mínimo 2) para a renovação
+      const years = Math.max(1, Math.round(daysBetween(world.date, p.contract.until) / 365));
       p.contract.until = addDays(world.date, Math.max(years, 2) * 365);
       p.contract.wage = exec.wage;
       p.contract.signedAt = world.date;
@@ -328,7 +330,7 @@ export function aiTransferActivity(world: World, career: Career | null, budget: 
     // vende excesso: jogadores fora dos planos ou contratos curtos
     const excess = squad.filter((p) => {
       if (p.age >= 30 && rng.chance(0.3)) return true;
-      if (p.contract && daysBetween(p.contract.until, world.date) < 120 && !isVitalPlayer(world, p)) return true;
+      if (p.contract && daysBetween(world.date, p.contract.until) < 120 && !isVitalPlayer(world, p)) return true;
       return false;
     });
     if (excess.length > 0 && rng.chance(0.5)) {
