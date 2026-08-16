@@ -97,9 +97,9 @@ export function syncBrackets(world: World): void {
       }
     }
 
-    // competição terminada?
+    // competição terminada? (guard: só registra o campeão uma vez)
     const last = comp.rounds[comp.rounds.length - 1];
-    if (last && last.complete) {
+    if (last && last.complete && comp.status !== 'finished') {
       comp.status = 'finished';
       const finalMatch = store.matches.find((m) => m.id === last.matchIds[0]);
       if (finalMatch) {
@@ -133,7 +133,9 @@ export function syncBrackets(world: World): void {
 // Tabelas
 // ------------------------------------------------------------
 export function compareStandings(a: StandingRow, b: StandingRow): number {
+  // critérios de desempate (regulamento): pontos → vitórias → saldo de gols → gols marcados
   if (b.points !== a.points) return b.points - a.points;
+  if (b.won !== a.won) return b.won - a.won;
   if (b.gd !== a.gd) return b.gd - a.gd;
   if (b.gf !== a.gf) return b.gf - a.gf;
   return a.clubId.localeCompare(b.clubId);
@@ -277,9 +279,35 @@ export function topScorersOf(world: World, compId: string, limit = 10): { player
     }))
     .sort((a, b) => b.goals - a.goals)
     .slice(0, limit);
+}/** Assistências de uma competição. */
+export function topAssistsOf(world: World, compId: string, limit = 10): { playerId: string; name: string; clubName: string; assists: number }[] {
+  const assists = new Map<string, { name: string; clubId: string; assists: number }>();
+  const matches = competitionMatches(world, compId);
+  for (const m of matches) {
+    if (!m.played || !m.playerStats) continue;
+    for (const ps of m.playerStats) {
+      if (ps.assists > 0) {
+        const p = world.players[ps.playerId];
+        if (!p) continue;
+        const rec = assists.get(ps.playerId) ?? { name: `${p.firstName} ${p.lastName}`, clubId: p.clubId ?? '', assists: 0 };
+        rec.assists += ps.assists;
+        assists.set(ps.playerId, rec);
+      }
+    }
+  }
+  return [...assists.entries()]
+    .map(([playerId, v]) => ({
+      playerId,
+      name: v.name,
+      clubName: v.clubId ? world.clubs[v.clubId]?.name ?? '—' : '—',
+      assists: v.assists,
+    }))
+    .sort((a, b) => b.assists - a.assists)
+    .slice(0, limit);
 }
 
 /** Fase atual de um mata-mata (nome). */
+
 export function currentCupRoundName(comp: Competition): string {
   if (comp.status === 'finished') return 'Finalizada';
   const idx = Math.min(comp.currentRoundIndex, comp.rounds.length - 1);

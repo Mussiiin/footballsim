@@ -315,6 +315,71 @@ function objectivesFor(tier: ClubTier): ClubObjective[] {
   return base;
 }
 
+/** Estádio com nome e capacidade reais (ex.: Maracanã). */
+function stadiumNamed(name: string, capacity: number, rep: number, tier: ClubTier): Stadium {
+  const occupancy = clamp(rep / 100 + 0.2, 0.6, 0.98);
+  const sectors = {} as Record<StadiumSectorId, StadiumSector>;
+  const seats = allocateSectorSeats(capacity);
+  for (const id of SECTOR_IDS) {
+    sectors[id] = { seats: seats[id], price: 0, share: seats[id] / capacity };
+  }
+  const basePrices: Record<StadiumSectorId, number> = {
+    arquibancada: Math.max(4, Math.round(5 + rep * 0.25)),
+    cadeira: Math.max(6, Math.round(8 + rep * 0.45)),
+    premium: Math.max(12, Math.round(14 + rep * 0.85)),
+    vip: Math.max(20, Math.round(22 + rep * 1.2)),
+    camarote: Math.max(30, Math.round(32 + rep * 1.6)),
+  };
+  for (const id of SECTOR_IDS) sectors[id].price = basePrices[id];
+  const comfortBase = clamp(Math.round(rep * 0.7), 45, 88);
+  return {
+    name,
+    capacity,
+    avgAttendance: Math.round(capacity * occupancy),
+    condition: clamp(rep + 5, 60, 95),
+    maintenanceCost: Math.round(capacity * 0.85),
+    reputation: rep,
+    satisfaction: clamp(rep - 5, 55, 88),
+    atmosphere: clamp(rep - 10, 50, 85),
+    protest: 0,
+    sectors,
+    comfort: {
+      assentos: comfortBase, banheiros: clamp(comfortBase - 10, 35, 85), alimentacao: clamp(comfortBase + 5, 40, 90),
+      climatizacao: clamp(comfortBase - 15, 30, 80), acessibilidade: clamp(comfortBase - 8, 30, 80), limpeza: clamp(comfortBase + 2, 50, 90),
+      iluminacao: clamp(comfortBase + 3, 45, 90), acustica: clamp(comfortBase - 5, 40, 85),
+    },
+    foodLevel: tier === 'Gigante' ? 2 : tier === 'Grande' ? 1 : 0,
+    storeLevel: tier === 'Gigante' ? 2 : tier === 'Grande' ? 1 : 0,
+    vipLevel: tier === 'Gigante' ? 2 : tier === 'Grande' ? 1 : 0,
+    parking: {
+      spaces: Math.round(capacity * 0.07),
+      price: tier === 'Gigante' ? 15 : tier === 'Grande' ? 10 : 6,
+      level: tier === 'Gigante' ? 2 : 1,
+    },
+    security: clamp(rep - 5, 50, 90),
+    tech: {
+      telao: tier === 'Gigante' ? 2 : 1, som: tier === 'Gigante' ? 2 : 1,
+      wifi: true, app: tier !== 'Pequeno', catapulta: false, smartTickets: tier === 'Gigante',
+    },
+    boxes: {
+      total: tier === 'Gigante' ? 40 : tier === 'Grande' ? 20 : 8,
+      sold: 0,
+      price: tier === 'Gigante' ? 550_000 : tier === 'Grande' ? 280_000 : 130_000,
+    },
+    works: [],
+    naming: null,
+    namingProposal: null,
+    bookings: [],
+    dynamicPricing: false,
+    lastPriceChange: null,
+    history: [],
+    value: 0,
+    eventsHosted: 0,
+    protestsFired: 0,
+    seasonAccum: { attendance: 0, matches: 0, ticket: 0, commercial: 0, costs: 0 },
+  };
+}
+
 function stadiumFor(tier: ClubTier, rng: RNG, city: string, suffix: string): Stadium {
   const capRange: Record<ClubTier, [number, number]> = {
     Gigante: [60000, 95000], Grande: [35000, 60000], Médio: [20000, 35000],
@@ -397,20 +462,26 @@ function generateClub(
   idx: number,
   leagueId: string,
   seasonYear: number,
-): { club: Club; clubStr: number } {
+): { club: Club; clubStr: number; realRivals?: string[] } {
   const repBonus = (country.rep - 50) / 10;
   const tierBase = tier === 1 ? 80 : tier === 2 ? 63 : 49;
   const spread = tier === 1 ? 1.1 : 0.85;
-  const clubStr = Math.round(tierBase - idx * spread + repBonus * (tier === 1 ? 1 : 0.5) + rng.gaussian(0, 2.5));
+  // clube real (ex.: Série A do Brasil) — substitui o padrão gerado
+  const real = country.realClubs?.[tier]?.[idx];
+  const clubStr = real
+    ? Math.round(real.strength + rng.gaussian(0, 1.5))
+    : Math.round(tierBase - idx * spread + repBonus * (tier === 1 ? 1 : 0.5) + rng.gaussian(0, 2.5));
   const rep = clamp(clubStr + 3, 15, 95);
   const tierLbl = tierLabel(rep);
-  const city = country.cities[idx % country.cities.length];
-  const pattern = country.clubPatterns[rng.int(0, country.clubPatterns.length - 1)];
-  const name = pattern.replace('{city}', city).replace('{n}', String(1900 + rng.int(0, 125)));
-  const shortName = name
+  const city = real ? real.city : country.cities[idx % country.cities.length];
+  const name = real ? real.name : (() => {
+    const pattern = country.clubPatterns[rng.int(0, country.clubPatterns.length - 1)];
+    return pattern.replace('{city}', city).replace('{n}', String(1900 + rng.int(0, 125)));
+  })();
+  const shortName = real ? real.shortName : (name
     .split(' ')
     .filter((w) => !['FC', 'AC', 'SC', 'SV', 'AS', 'NK', 'OFK', 'FK', 'US', 'CD', 'AD', 'TSV', 'RC', 'ES', 'SG', 'VfB'].includes(w))
-    .join(' ') || name;
+    .join(' ') || name);
 
   const balance: Record<ClubTier, [number, number]> = {
     Gigante: [80_000_000, 160_000_000],
@@ -421,13 +492,15 @@ function generateClub(
   };
   const [bmin, bmax] = balance[tierLbl];
   const balanceAmt = rng.int(bmin, bmax);
-  const stadium = stadiumFor(tierLbl, rng, city, rng.pick(country.stadiumSuffixes).replace('{city}', city));
+  const stadium = real
+    ? stadiumNamed(real.stadium, real.capacity, clamp(rep, 40, 95), tierLbl)
+    : stadiumFor(tierLbl, rng, city, rng.pick(country.stadiumSuffixes).replace('{city}', city));
   const facilitiesBase = clamp(clubStr, 30, 95);
 
   const club: Club = {
     id: `${country.id}_${tier}_${idx}`,
     name,
-    shortName: shortName.length > 18 ? shortName.slice(0, 18) : shortName,
+    shortName: (real ? shortName : shortName).slice(0, 18),
     countryId: country.id,
     city,
     stadium,
@@ -467,7 +540,7 @@ function generateClub(
     founded: rng.int(1895, 2015),
     financeAccum: { revenue: 0, expenses: 0 },
   };
-  return { club, clubStr };
+  return { club, clubStr, realRivals: real?.rivals };
 }
 
 // ------------------------------------------------------------
@@ -476,12 +549,14 @@ function generateClub(
 function createLeagueCompetition(country: CountryData, tier: number, season: string): Competition {
   const names: Record<number, string> = {
     1: country.leagueName, 2: country.secondDivisionName, 3: country.thirdDivisionName,
+    4: country.fourthDivisionName ?? `${country.name} Série D`,
   };
   const id = `${country.id}_L${tier}`;
+  const isBrazil = country.id === 'brazil';
   return {
     id,
     name: names[tier],
-    shortName: `${country.flag} D${tier}`,
+    shortName: `${country.flag} ${isBrazil ? ['Série A', 'Série B', 'Série C', 'Série D'][tier - 1] ?? `D${tier}` : `D${tier}`}`,
     countryId: country.id,
     type: 'league',
     tier,
@@ -492,16 +567,19 @@ function createLeagueCompetition(country: CountryData, tier: number, season: str
     currentRoundIndex: 0,
     status: 'scheduled',
     prizeMoney: tier === 1
-      ? { champion: 8_000_000, runnerUp: 4_000_000 }
+      ? { champion: isBrazil ? 12_000_000 : 8_000_000, runnerUp: isBrazil ? 5_000_000 : 4_000_000 }
       : tier === 2
-        ? { champion: 2_000_000, runnerUp: 1_000_000 }
-        : { champion: 600_000, runnerUp: 300_000 },
+        ? { champion: isBrazil ? 3_000_000 : 2_000_000, runnerUp: isBrazil ? 1_400_000 : 1_000_000 }
+        : tier === 3
+          ? { champion: isBrazil ? 1_200_000 : 600_000, runnerUp: isBrazil ? 500_000 : 300_000 }
+          : { champion: 400_000, runnerUp: 180_000 },
     champions: [],
     topScorers: [],
     rules: {
-      promotionSpots: tier === 1 ? 0 : 3,
-      relegationSpots: tier === 3 ? 0 : 3,
+      promotionSpots: tier === 1 ? 0 : isBrazil ? 4 : 3,
+      relegationSpots: isBrazil ? (tier === 4 ? 0 : 4) : tier === 3 ? 0 : 3,
       continentalSpots: tier === 1 ? 4 : 0,
+      sudamericanaSpots: tier === 1 && isBrazil ? 2 : 0,
       points: 3,
     },
   };
@@ -619,10 +697,26 @@ export function cupFixtures(comp: Competition, world: World, rng: RNG): { matche
   const seasonYear = Number(world.season.slice(0, 4));
   const baseDate = `${seasonYear}-08-15`; // sábado
   // copa aos domingos (base+1 é domingo): nunca conflita com a liga (sábados)
-  const roundDates = [22, 50, 85, 127, 176, 225].map((d) => addDays(baseDate, d));
-  const roundNames = ['1ª Fase', '2ª Fase', '3ª Fase', 'Quartas de final', 'Semifinal', 'Final'];
+  // datas espalhadas — sempre antes do fim da liga (~dia 259), final ~dia 215
+  const nTeams = comp.clubIds.length;
+  let target = 1;
+  while (target * 2 <= nTeams) target *= 2; // maior potência de 2 ≤ nTeams
+  const firstRoundGames = nTeams - target;      // jogos na 1ª fase
+  const byesCount = nTeams - firstRoundGames * 2; // passam direto (melhores)
+  const totalRounds = 1 + Math.log2(target);
+  const roundDates = Array.from({ length: totalRounds }, (_, i) =>
+    addDays(baseDate, Math.round(15 + ((215 - 15) * i) / Math.max(1, totalRounds - 1))),
+  );
 
-  const mkMatch = (round: number, date: string): Match => ({
+  const names = ['1ª Fase', '2ª Fase', '3ª Fase', '4ª Fase', 'Oitavas de final', 'Quartas de final', 'Semifinal', 'Final'];
+  const roundNames = Array.from({ length: totalRounds }, (_, i) => {
+    if (i === totalRounds - 1) return 'Final';
+    if (i === totalRounds - 2) return 'Semifinal';
+    if (i === totalRounds - 3) return 'Quartas de final';
+    return names[i];
+  });
+
+  const mkMatch = (round: number, date: string, ri: number): Match => ({
     id: mid(),
     competitionId: comp.id,
     season: world.season,
@@ -641,7 +735,7 @@ export function cupFixtures(comp: Competition, world: World, rng: RNG): { matche
     homeFormation: '4-4-2',
     awayFormation: '4-4-2',
     attendance: null,
-    importance: round === 5 ? 85 : round === 4 ? 75 : 60,
+    importance: ri === totalRounds - 1 ? 85 : ri === totalRounds - 2 ? 80 : ri === totalRounds - 3 ? 75 : 60,
     weather: rng.pick(['Ensolarado', 'Nublado', 'Chuva leve', 'Chuva forte', 'Vento', 'Neve']),
     penaltyShootout: null,
     homeName: '',
@@ -652,7 +746,7 @@ export function cupFixtures(comp: Competition, world: World, rng: RNG): { matche
 
   const matches: Match[] = [];
   const refs: Record<string, { home: MatchRef; away: MatchRef }> = {};
-  const rounds: CupRound[] = roundNames.map((name, i) => ({
+  const rounds: CupRound[] = roundNames.map((name) => ({
     name,
     legs: 'single' as const,
     extraTime: true,
@@ -663,12 +757,12 @@ export function cupFixtures(comp: Competition, world: World, rng: RNG): { matche
 
   const allTeams = [...comp.clubIds];
   const sorted = [...allTeams].sort((a, b) => world.clubs[b].reputation - world.clubs[a].reputation);
-  const byes = sorted.slice(0, 4);
-  const rest = rng.shuffle(sorted.slice(4));
+  const byes = sorted.slice(0, byesCount);
+  const rest = rng.shuffle(sorted.slice(byesCount));
 
-  // 1ª fase: 56 times → 28 jogos (equipes reais)
-  for (let i = 0; i < 28; i++) {
-    const m = mkMatch(1, roundDates[0]);
+  // 1ª fase: os clubes não-cabeças de chave se enfrentam
+  for (let i = 0; i < firstRoundGames; i++) {
+    const m = mkMatch(1, roundDates[0], 0);
     m.homeId = rest[i * 2];
     m.awayId = rest[i * 2 + 1];
     m.homeName = world.clubs[rest[i * 2]].name;
@@ -678,27 +772,34 @@ export function cupFixtures(comp: Competition, world: World, rng: RNG): { matche
     rounds[0].matchIds.push(m.id);
   }
 
-  // 2ª fase: 28 vencedores da 1ª + 4 cabeças de chave
-  for (let i = 0; i < 16; i++) {
-    const m = mkMatch(2, roundDates[1]);
-    const homeRef: MatchRef = i < 14
-      ? { kind: 'winner', matchId: rounds[0].matchIds[i * 2] }
-      : { kind: 'club', id: byes[(i - 14) * 2] };
-    const awayRef: MatchRef = i < 14
-      ? { kind: 'winner', matchId: rounds[0].matchIds[i * 2 + 1] }
-      : { kind: 'club', id: byes[(i - 14) * 2 + 1] };
-    refs[m.id] = { home: homeRef, away: awayRef };
+  // 2ª fase: vencedores da 1ª + cabeças de chave (até chegar em potência de 2)
+  const secondGames = target / 2;
+  const winnerPairs = firstRoundGames / 2;
+  for (let i = 0; i < secondGames; i++) {
+    const m = mkMatch(2, roundDates[1], 1);
+    if (i < winnerPairs) {
+      refs[m.id] = {
+        home: { kind: 'winner', matchId: rounds[0].matchIds[i * 2] },
+        away: { kind: 'winner', matchId: rounds[0].matchIds[i * 2 + 1] },
+      };
+    } else {
+      const bi = (i - winnerPairs) * 2;
+      refs[m.id] = {
+        home: { kind: 'club', id: byes[bi] },
+        away: { kind: 'club', id: byes[bi + 1] },
+      };
+    }
     matches.push(m);
     rounds[1].matchIds.push(m.id);
   }
 
   // fases seguintes: vencedores da fase anterior
   const prevMatchIds = (ri: number) => rounds[ri].matchIds;
-  for (let ri = 2; ri < 6; ri++) {
+  for (let ri = 2; ri < totalRounds; ri++) {
     const prev = prevMatchIds(ri - 1);
     const nMatches = prev.length / 2;
     for (let i = 0; i < nMatches; i++) {
-      const m = mkMatch(ri + 1, roundDates[ri - 1]);
+      const m = mkMatch(ri + 1, roundDates[ri], ri);
       refs[m.id] = {
         home: { kind: 'winner', matchId: prev[i * 2] },
         away: { kind: 'winner', matchId: prev[i * 2 + 1] },
@@ -888,13 +989,16 @@ export function generateWorld(seed: string, season = '2026/27'): World {
       continentalId: 'CONTINENTAL',
     };
 
-    for (let tier = 1; tier <= 3; tier++) {
+    const tiers = cd.id === 'brazil' ? 4 : 3;
+    for (let tier = 1; tier <= tiers; tier++) {
       const comp = createLeagueCompetition(cd, tier, season);
       world.competitions[comp.id] = comp;
       country.divisions.push(comp.id);
-      for (let i = 0; i < 20; i++) {
-        const { club, clubStr } = generateClub(rng, cd, tier, i, comp.id, seasonYear);
+      const nClubs = cd.realClubs?.[tier]?.length ?? 20;
+      for (let i = 0; i < nClubs; i++) {
+        const { club, clubStr, realRivals } = generateClub(rng, cd, tier, i, comp.id, seasonYear);
         club.squadStrength = clubStr;
+        if (realRivals) club.rivals = realRivals;
         world.clubs[club.id] = club;
         comp.clubIds.push(club.id);
       }
@@ -917,12 +1021,37 @@ export function generateWorld(seed: string, season = '2026/27'): World {
     for (const cid of sorted.slice(0, 4)) cont.clubIds.push(cid);
   }
 
+  // rivalidades reais (ex.: clássicos do Brasil) — resolve shortNames para IDs
+  for (const cd of COUNTRIES) {
+    if (!cd.realClubs) continue;
+    const real = cd.realClubs;
+    const byShort: Record<string, string> = {};
+    for (const tier of Object.keys(real)) {
+      const t = Number(tier);
+      real[t].forEach((seed, i) => {
+        byShort[seed.shortName] = `${cd.id}_${t}_${i}`;
+      });
+    }
+    for (const tier of Object.keys(real)) {
+      const t = Number(tier);
+      real[t].forEach((seed, i) => {
+        const clubId = `${cd.id}_${t}_${i}`;
+        const club = world.clubs[clubId];
+        if (!club || !seed.rivals) return;
+        club.rivals = seed.rivals
+          .map((r) => byShort[r])
+          .filter((id): id is string => !!id && world.clubs[id] !== undefined);
+      });
+    }
+  }
+
   // rivalidades: 2-3 adversários do mesmo país com reputação próxima (dérbis)
   for (const c of world.countries) {
     const pool = [];
     for (const lid of c.divisions) pool.push(...world.competitions[lid].clubIds);
     for (const cid of pool) {
       const club = world.clubs[cid];
+      if (club.rivals.length > 0) continue; // rivalidade real já definida
       const candidates = pool
         .filter((x) => x !== cid)
         .map((x) => ({ id: x, diff: Math.abs(world.clubs[x].reputation - club.reputation) }))

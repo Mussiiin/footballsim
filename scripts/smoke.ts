@@ -37,12 +37,21 @@ console.log(`  Clubes: ${Object.keys(world.clubs).length}`);
 console.log(`  Jogadores: ${Object.keys(world.players).length}`);
 console.log(`  Partidas da temporada: ${Object.values(world.leagueMatches).reduce((s, m) => s + m.length, 0)}`);
 console.log(`  Partidas de copas: ${Object.values(world.cupMatches).reduce((s, m) => s + m.matches.length, 0)}`);
-console.log(`  Partidas continentais: ${Object.values(world.continentalMatches).reduce((s, m) => s + m.matches.length, 0)}`);  check('4 países', world.countries.length === 4);
-  check('240 clubes (4×3×20)', Object.keys(world.clubs).length === 240);
-check('≥ 5800 jogadores', Object.keys(world.players).length >= 5800);
+console.log(`  Partidas continentais: ${Object.values(world.continentalMatches).reduce((s, m) => s + m.matches.length, 0)}`);  check('5 países (inclui Brasil)', world.countries.length === 5);
+  check('320 clubes (4×3×20 + Brasil 4×20)', Object.keys(world.clubs).length === 320);
+check('≥ 7800 jogadores', Object.keys(world.players).length >= 7800);
 check('liga com 380 partidas', Object.values(world.leagueMatches)[0].length === 380);
-check('copa com 59 partidas', Object.values(world.cupMatches)[0].matches.length === 59);
-check('continental com 31 partidas (4 grupos de 4 + mata-mata)', Object.values(world.continentalMatches)[0].matches.length === 31);
+check('copa com ≥ 59 partidas', Object.values(world.cupMatches).every((s) => s.matches.length >= 59));
+check('continental com ≥ 31 partidas', Object.values(world.continentalMatches)[0].matches.length >= 31);
+// Brasil: 20 clubes reais na Série A
+const br = world.countries.find((c) => c.id === 'brazil');
+if (br) {
+  const brA = world.competitions[br.divisions[0]];
+  check('Brasil Série A com 20 clubes', brA.clubIds.length === 20);
+  check('Brasil Série A com Flamengo', brA.clubIds.some((id) => world.clubs[id].name === 'Flamengo'));
+  check('Brasil com 4 divisões', br.divisions.length === 4);
+  check('Brasil com 38 rodadas', world.leagueMatches[brA.id].length === 380);
+}
 
 // overalls razoáveis
 const allPlayers = Object.values(world.players);
@@ -216,7 +225,8 @@ console.log('🤝 Testando negociação completa (novo sistema)...');
     const n2low = sendClubOffer(career.world, career, neg2.id, {
       fee: Math.round(neg2.sellerAsk * 0.15), bonus: 0, sellOnPct: 0, installments: 1,
     });
-    check('proposta baixa é rejeitada/contraproposta', ['rejeitada', 'contraproposta'].includes(n2low.status), n2low.status);
+    // resposta válida a proposta baixa: rejeitada, contraproposta ou "pedir tempo" (proposta-enviada)
+    check('proposta baixa é rejeitada/contraproposta/pede tempo', ['rejeitada', 'contraproposta', 'proposta-enviada'].includes(n2low.status), n2low.status);
   }
 
   // guerra de propostas

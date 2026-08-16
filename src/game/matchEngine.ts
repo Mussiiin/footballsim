@@ -431,6 +431,8 @@ export function simulateMatch(world: World, match: Match, opts: SimOptions = {})
   const awaySubbedIn = new Set<string>();
   const homeYellows = new Set<string>();
   const awayYellows = new Set<string>();
+  const homeExpelledAt = new Map<string, number>();
+  const awayExpelledAt = new Map<string, number>();
   const homeIntensity = opts.homeStyle?.intensity ?? 50;
   const awayIntensity = opts.awayStyle?.intensity ?? 50;
 
@@ -611,6 +613,7 @@ export function simulateMatch(world: World, match: Match, opts: SimOptions = {})
           const idx = homeOnPitch.indexOf(p);
           if (idx >= 0) homeOnPitch.splice(idx, 1);
           homeSubbedOut.add(p.id);
+          homeExpelledAt.set(p.id, min);
         }
       }
     }
@@ -623,6 +626,7 @@ export function simulateMatch(world: World, match: Match, opts: SimOptions = {})
           const idx = awayOnPitch.indexOf(p);
           if (idx >= 0) awayOnPitch.splice(idx, 1);
           awaySubbedOut.add(p.id);
+          awayExpelledAt.set(p.id, min);
         }
       }
     }
@@ -761,12 +765,15 @@ export function simulateMatch(world: World, match: Match, opts: SimOptions = {})
   const awayScorers: { playerId: string; goals: number }[] = [];
   const homePool = homeParticipants.map((x) => x.p);
   const awayPool = awayParticipants.map((x) => x.p);
+  // quem foi expulso não pode marcar nem dar assistência depois do minuto da expulsão
+  const eligibleForMinute = (pool: Player[], expelledAt: Map<string, number>, minute: number): Player[] =>
+    pool.filter((p) => !expelledAt.has(p.id) || (expelledAt.get(p.id) ?? 999) > minute);
 
   if (track) {
     for (const m of homeGoalMins) {
-      const scorer = pickScorer(homePool);
+      const scorer = pickScorer(eligibleForMinute(homePool, homeExpelledAt, m));
       if (!scorer) break;
-      const assist = rng.chance(0.72) ? pickAssist(homePool, scorer) : null;
+      const assist = rng.chance(0.72) ? pickAssist(eligibleForMinute(homePool, homeExpelledAt, m), scorer) : null;
       events.push({
         minute: m,
         type: 'goal',
@@ -779,9 +786,9 @@ export function simulateMatch(world: World, match: Match, opts: SimOptions = {})
       else homeScorers.push({ playerId: scorer.id, goals: 1 });
     }
     for (const m of awayGoalMins) {
-      const scorer = pickScorer(awayPool);
+      const scorer = pickScorer(eligibleForMinute(awayPool, awayExpelledAt, m));
       if (!scorer) break;
-      const assist = rng.chance(0.72) ? pickAssist(awayPool, scorer) : null;
+      const assist = rng.chance(0.72) ? pickAssist(eligibleForMinute(awayPool, awayExpelledAt, m), scorer) : null;
       events.push({
         minute: m,
         type: 'goal',

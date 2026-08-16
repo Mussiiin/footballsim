@@ -356,6 +356,8 @@ export interface Competition {
     promotionSpots: number;
     relegationSpots: number;
     continentalSpots: number;
+    /** Vagas extras de segunda competição continental (ex.: Sul-Americana). Zona visual na tabela. */
+    sudamericanaSpots?: number;
     points: number;
   };
 }

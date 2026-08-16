@@ -12,8 +12,26 @@ export interface CountryData {
   stadiumSuffixes: string[];
   secondDivisionName: string;
   thirdDivisionName: string;
+  fourthDivisionName?: string;
   cupName: string;
   leagueName: string;
+  /** Clubes reais por divisão (tier 1, 2, ...). Quando presente, substitui a geração por padrões. */
+  realClubs?: Record<number, RealClubSeed[]>;
+}
+
+/** Semente de clube real (Brasil Série A 2026 etc.). */
+export interface RealClubSeed {
+  name: string;
+  shortName: string;
+  city: string;
+  stadium: string;
+  capacity: number;
+  founded: number;
+  /** 1-100 — força/reputação relativa do elenco */
+  strength: number;
+  /** Diferencial: 1 (grande) a 5 (pequeno) — define tier e objetivos */
+  rank: 1 | 2 | 3 | 4 | 5;
+  rivals?: string[]; // nomes curtos dos rivais
 }
 
 // Países jogáveis do mundo (por enquanto 4 — fácil adicionar mais)
@@ -77,6 +95,46 @@ export const COUNTRIES: CountryData[] = [
     thirdDivisionName: 'Serie C',
     cupName: 'Coppa Italia',
     leagueName: 'Serie A',
+  },
+  {
+    id: 'brazil',
+    name: 'Brasil',
+    flag: '🇧🇷',
+    rep: 84,
+    first: ['Gabriel', 'Lucas', 'Matheus', 'Pedro', 'João', 'Rafael', 'Thiago', 'Bruno', 'Felipe', 'Gustavo', 'Vinícius', 'Caio', 'Diego', 'Rodrigo', 'Eduardo', 'Leonardo', 'André', 'Carlos', 'Marcos', 'Renato', 'Alexandre', 'Fábio', 'Igor', 'Kaio', 'Luiz', 'Nicolas', 'Otávio', 'Paulo', 'Ricardo', 'Samuel', 'Tiago', 'Vitor', 'Wesley', 'Yuri', 'Arthur', 'Daniel', 'Enzo', 'Fernando', 'Guilherme', 'Henrique', 'Ítalo', 'Jeferson', 'Klaus', 'Léo', 'Murilo', 'Nathan', 'Otávio', 'Pablo', 'Ruan', 'Sávio', 'Talles', 'Ulisses', 'Wagner', 'Xavier', 'Zeca', 'Alan', 'Breno', 'Cauã', 'Davi', 'Erick', 'Felipe', 'Gabriel', 'Heitor', 'Isaac', 'João Pedro', 'Kaique', 'Luan', 'Miguel', 'Noah', 'Otávio', 'Pedro Henrique', 'Raul', 'Sergio', 'Théo', 'Vanderson', 'Wendel', 'Yago'],
+    last: ['Silva', 'Santos', 'Oliveira', 'Souza', 'Pereira', 'Costa', 'Rodrigues', 'Almeida', 'Nascimento', 'Lima', 'Araújo', 'Fernandes', 'Carvalho', 'Gomes', 'Martins', 'Rocha', 'Ribeiro', 'Alves', 'Monteiro', 'Barbosa', 'Pinto', 'Cardoso', 'Ramos', 'Correia', 'Moreira', 'Teixeira', 'Marques', 'Freitas', 'Melo', 'Dias', 'Moraes', 'Campos', 'Barros', 'Cavalcanti', 'Duarte', 'Vieira', 'Farias', 'Siqueira', 'Fonseca', 'Nogueira', 'Peixoto', 'Xavier', 'Assis', 'Bastos', 'Castro', 'Dantas', 'Esteves', 'Ferreira', 'Gonçalves', 'Henriques', 'Inácio', 'Junqueira', 'Klein', 'Lopes', 'Machado', 'Neves', 'Oliveira', 'Penha', 'Queiroz', 'Rezende', 'Sales', 'Tavares', 'Uchôa', 'Vasconcelos', 'Wanderley', 'Ximenes', 'Zanetti', 'Amorim', 'Braga', 'Caldeira', 'Dutra', 'Elias', 'Franco', 'Guedes', 'Holanda', 'Ignácio', 'Jorge', 'Kato', 'Lacerda', 'Maia', 'Noronha', 'Orlando', 'Paes', 'Quaresma', 'Reis', 'Sarmento', 'Toledo', 'Ubaldo', 'Valadares', 'Weber', 'Xavier'],
+    cities: ['São Paulo', 'Rio de Janeiro', 'Belo Horizonte', 'Porto Alegre', 'Curitiba', 'Salvador', 'Fortaleza', 'Recife', 'Manaus', 'Belém', 'Goiânia', 'Florianópolis', 'Vitória', 'Natal', 'João Pessoa', 'Maceió', 'Campo Grande', 'Cuiabá', 'Teresina', 'Aracaju', 'Santos', 'Campinas', 'Niterói', 'Bragança Paulista', 'Chapecó', 'Mirassol', 'Caxias do Sul', 'Londrina', 'Joinville', 'Blumenau', 'Ribeirão Preto', 'Uberlândia', 'Juiz de Fora', 'Santo André', 'Osasco', 'Guarulhos', 'São Bernardo do Campo', 'Pelotas', 'Novo Hamburgo', 'Criciúma', 'Ponta Grossa', 'Maringá', 'Bauru', 'São José dos Campos', 'Sorocaba', 'Piracicaba', 'Americana', 'Franca', 'Botucatu', 'Itu'],
+    clubPatterns: ['{city} FC', 'Esporte {city}', 'EC {city}', 'AC {city}', 'Grêmio {city}', 'Clube {city}', 'AD {city}'],
+    stadiumSuffixes: ['Arena', 'Estádio', 'Estádio Municipal', 'Complexo Esportivo'],
+    secondDivisionName: 'Brasileirão Série B',
+    thirdDivisionName: 'Brasileirão Série C',
+    fourthDivisionName: 'Brasileirão Série D',
+    cupName: 'Copa do Brasil',
+    leagueName: 'Brasileirão Série A',
+    realClubs: {
+      1: [
+        { name: 'Flamengo', shortName: 'FLA', city: 'Rio de Janeiro', stadium: 'Maracanã', capacity: 78838, founded: 1895, strength: 88, rank: 1, rivals: ['VAS', 'FLU', 'BOT'] },
+        { name: 'Palmeiras', shortName: 'PAL', city: 'São Paulo', stadium: 'Allianz Parque', capacity: 43713, founded: 1914, strength: 87, rank: 1, rivals: ['COR', 'SAO'] },
+        { name: 'Cruzeiro', shortName: 'CRU', city: 'Belo Horizonte', stadium: 'Mineirão', capacity: 61846, founded: 1921, strength: 84, rank: 2, rivals: ['CAM'] },
+        { name: 'Mirassol', shortName: 'MIR', city: 'Mirassol', stadium: 'Estádio José Maria de Campos Maia', capacity: 15000, founded: 1925, strength: 66, rank: 4 },
+        { name: 'Fluminense', shortName: 'FLU', city: 'Rio de Janeiro', stadium: 'Maracanã', capacity: 78838, founded: 1902, strength: 83, rank: 2, rivals: ['FLA', 'BOT'] },
+        { name: 'Bahia', shortName: 'BAH', city: 'Salvador', stadium: 'Arena Fonte Nova', capacity: 47907, founded: 1931, strength: 79, rank: 3, rivals: ['VIT'] },
+        { name: 'Botafogo', shortName: 'BOT', city: 'Rio de Janeiro', stadium: 'Nilton Santos', capacity: 46831, founded: 1904, strength: 85, rank: 2, rivals: ['FLA', 'VAS', 'FLU'] },
+        { name: 'São Paulo', shortName: 'SAO', city: 'São Paulo', stadium: 'Morumbis', capacity: 66795, founded: 1930, strength: 82, rank: 2, rivals: ['PAL', 'COR', 'SAN'] },
+        { name: 'Red Bull Bragantino', shortName: 'RBB', city: 'Bragança Paulista', stadium: 'Nabi Abi Chedid', capacity: 17128, founded: 1928, strength: 76, rank: 3 },
+        { name: 'Corinthians', shortName: 'COR', city: 'São Paulo', stadium: 'Neo Química Arena', capacity: 47605, founded: 1910, strength: 80, rank: 2, rivals: ['PAL', 'SAO'] },
+        { name: 'Grêmio', shortName: 'GRE', city: 'Porto Alegre', stadium: 'Arena do Grêmio', capacity: 55662, founded: 1903, strength: 81, rank: 2, rivals: ['INT'] },
+        { name: 'Vasco da Gama', shortName: 'VAS', city: 'Rio de Janeiro', stadium: 'São Januário', capacity: 21880, founded: 1898, strength: 74, rank: 3, rivals: ['FLA', 'BOT'] },
+        { name: 'Atlético Mineiro', shortName: 'CAM', city: 'Belo Horizonte', stadium: 'Arena MRV', capacity: 46000, founded: 1908, strength: 83, rank: 2, rivals: ['CRU'] },
+        { name: 'Santos', shortName: 'SAN', city: 'Santos', stadium: 'Vila Belmiro', capacity: 16068, founded: 1912, strength: 77, rank: 3, rivals: ['SAO'] },
+        { name: 'Vitória', shortName: 'VIT', city: 'Salvador', stadium: 'Barradão', capacity: 34535, founded: 1899, strength: 72, rank: 3, rivals: ['BAH'] },
+        { name: 'Internacional', shortName: 'INT', city: 'Porto Alegre', stadium: 'Beira-Rio', capacity: 50128, founded: 1909, strength: 82, rank: 2, rivals: ['GRE'] },
+        { name: 'Coritiba', shortName: 'CFC', city: 'Curitiba', stadium: 'Couto Pereira', capacity: 40502, founded: 1909, strength: 73, rank: 3, rivals: ['CAP'] },
+        { name: 'Athletico Paranaense', shortName: 'CAP', city: 'Curitiba', stadium: 'Ligga Arena', capacity: 42372, founded: 1924, strength: 78, rank: 3, rivals: ['CFC'] },
+        { name: 'Chapecoense', shortName: 'CHA', city: 'Chapecó', stadium: 'Arena Condá', capacity: 20089, founded: 1973, strength: 68, rank: 4 },
+        { name: 'Remo', shortName: 'REM', city: 'Belém', stadium: 'Baenão', capacity: 17500, founded: 1905, strength: 64, rank: 5 },
+      ],
+    },
   },
 ];
 

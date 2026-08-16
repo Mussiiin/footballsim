@@ -4,7 +4,7 @@ export function AboutScreen() {
   const { navigate } = useGame();
 
   const features = [
-    ['🌍', 'Mundo vivo', '4 países (Inglaterra, Alemanha, Espanha e Itália), 12 ligas, 240 clubes e mais de 6.000 jogadores simulados com IA.'],
+    ['🌍', 'Mundo vivo', '5 países (Inglaterra, Alemanha, Espanha, Itália e Brasil), 16 ligas, 320 clubes e mais de 8.000 jogadores simulados com IA.'],
     ['⚽', 'Motor de partidas', 'Simulação determinística minuto a minuto com gols, cartões, lesões, xG e notas.'],
     ['🧠', 'IA dos clubes', 'Diretorias demitem e contratam, clubes negociam e o mundo evolui sem você.'],
     ['📅', 'Temporadas infinitas', 'Promoção, rebaixamento, copas, continental, aposentadorias e novas gerações.'],
