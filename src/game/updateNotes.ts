@@ -49,7 +49,7 @@ export const UPDATE_HISTORY: UpdateNoteVersion[] = [
     newFeatures: [
     ],
     improvements: [
-      { title: 'Mecânicas do jogo, Calendário', description: 'scripts/publish.mjs: mecânica' },
+      { title: 'Calendário', description: 'Mensagem de calendário vazio mais clara ("Nenhuma partida agendada nos próximos dias").' },
     ],
     bugFixes: [
     ],

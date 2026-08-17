@@ -78,6 +78,9 @@ const FILE_FEATURES = {
   'src/lib/db.ts': 'Saves e migração',
   'src/App.tsx': 'Navegação do jogo',
   'src/ui/Shell.tsx': 'Navegação do jogo',
+  'scripts/publish.mjs': 'Sistema de publicação',
+  'scripts/release.mjs': 'Sistema de publicação',
+  'package.json': 'Sistema de publicação',
 };
 const releaseFiles = ['src/game/updateNotes.ts', 'public/manifest.webmanifest'];
 const featurePending = pending.filter((p) => !releaseFiles.some((f) => p.includes(f)));

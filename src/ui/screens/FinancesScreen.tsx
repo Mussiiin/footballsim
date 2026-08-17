@@ -55,7 +55,7 @@ export function FinancesScreen() {
         <StatCard label="Folha salarial" value={fmtMoney(club.wageBill)} sub={`${squad.length} jogadores/mês`} />
         <StatCard label="Dívidas" value={fmtMoney(debt)} sub={debt > 0 ? 'A comprometer o caixa' : 'Sem dívidas'} accent={debt > club.balance * 0.6 ? 'bg-red-500/10 text-red-400' : 'bg-surface-700/50 text-slate-300'} />
         <StatCard label="Valor do clube" value={fmtMoney(club.clubValue)} sub={`${club.tier}`} />
-        <StatCard label="Saldo mensal" value={fmtMoney(income - expenses)} sub="Receita − despesas previstas" />
+        <StatCard label="Saldo mensal previsto" value={fmtMoney(income - expenses)} sub="Receita − despesas do mês" />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
