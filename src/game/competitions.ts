@@ -2,6 +2,38 @@ import {
   World, Competition, Match, StandingRow, MatchRef, CupMatchStore, ContinentalMatchStore, Career,
 } from '../lib/types';
 import { getPrizeRules, stagePrizeFor, grantPrize } from './cupPrizes';
+import { RNG, hashString } from '../lib/rng';
+
+// ------------------------------------------------------------
+// Confronto de ida e volta (agregado; pênaltis em caso de empate)
+// ------------------------------------------------------------
+export function aggregateWinner(ida: Match, volta: Match): { winner: string; loser: string } | null {
+  if (!ida || !volta || !ida.played || !volta.played) return null;
+  const teamA = ida.homeId;
+  const teamB = ida.awayId;
+  const aggA = (ida.homeScore ?? 0) + (volta.awayScore ?? 0);
+  const aggB = (ida.awayScore ?? 0) + (volta.homeScore ?? 0);
+  if (aggA > aggB) return { winner: teamA, loser: teamB };
+  if (aggB > aggA) return { winner: teamB, loser: teamA };
+  // agregado empatado → pênaltis (determinístico por partida)
+  const rng = new RNG(hashString(ida.id + '|' + volta.id + '|pens'));
+  let home = 0, away = 0;
+  for (let i = 0; i < 5; i++) {
+    if (rng.chance(0.72)) home++;
+    if (rng.chance(0.72)) away++;
+  }
+  let rounds = 5;
+  while (home === away && rounds < 12) {
+    if (rng.chance(0.72)) home++;
+    if (rng.chance(0.72)) away++;
+    rounds++;
+  }
+  // a volta tem o time B em casa → home da disputa = time B
+  const winner = home > away ? teamB : teamA;
+  const loser = winner === teamA ? teamB : teamA;
+  volta.penaltyShootout = { home, away };
+  return { winner, loser };
+}
 
 // ------------------------------------------------------------
 // Vencedor de uma partida (considera pênaltis)
@@ -24,6 +56,13 @@ export function winnerOf(m: Match): string | null {
 export function resolveRef(ref: MatchRef, comp: Competition, store: CupMatchStore, world: World): string | null {
   if (ref.kind === 'club') return ref.id;
   if (ref.kind === 'winner') return store.roundWinners[ref.matchId] ?? null;
+  if (ref.kind === 'loser') {
+    // perdedor de um confronto — pode estar em outra competição (ex.: playoff de acesso da Série D)
+    const target = ref.competitionId && ref.competitionId !== comp.id
+      ? world.cupMatches[ref.competitionId]
+      : store;
+    return target?.roundLosers?.[ref.matchId] ?? null;
+  }
   if (ref.kind === 'group') {
     const cstore = store as ContinentalMatchStore;
     const groupStandings = comp.standings
@@ -91,6 +130,40 @@ export function syncBrackets(world: World, career: Career | null = null): void {
     if (!store) continue;
 
     if (comp.status === 'scheduled') comp.status = 'ongoing';
+    if (!store.roundLosers) store.roundLosers = {};
+
+    // Série D (ligas com fase de grupos + mata-mata): quando a fase de grupos termina
+    // (todas as partidas de liga jogadas), resolve a 2ª fase do chaveamento.
+    if (comp.knockoutAfterGroups && comp.rounds.length > 0 && !comp.rounds[0].complete) {
+      const leagueMs = world.leagueMatches[comp.id] ?? [];
+      const groupsDone = leagueMs.length > 0 && leagueMs.every((m) => m.played);
+      if (groupsDone) {
+        resolveRound(world, compId, 0);
+        // 💰 Participação (todos) + classificação aos 64 (4 melhores de cada grupo)
+        const rules = getPrizeRules(world, compId);
+        if (rules) {
+          const qualified = new Set<string>();
+          for (const g of comp.groups ?? []) {
+            const groupRows = comp.standings
+              .filter((s) => comp.clubGroup?.[s.clubId] === g.id)
+              .sort(compareStandings);
+            groupRows.slice(0, 4).forEach((s) => qualified.add(s.clubId));
+          }
+          for (const cid of comp.clubIds) {
+            const club = world.clubs[cid];
+            if (!club) continue;
+            grantPrize(world, career, compId, cid, 'Participação', stagePrizeFor(rules, 'Participação', club));
+            if (qualified.has(cid)) {
+              grantPrize(world, career, compId, cid, 'Classificação', stagePrizeFor(rules, 'Classificação', club));
+            }
+          }
+        }
+      }
+    }
+    // playoff de acesso: resolve assim que os perdedores das quartas forem conhecidos
+    if (comp.accessPlayoffId && world.competitions[comp.accessPlayoffId]) {
+      resolveRound(world, comp.accessPlayoffId, 0);
+    }
 
     for (let r = 0; r < comp.rounds.length; r++) {
       const round = comp.rounds[r];
@@ -100,20 +173,41 @@ export function syncBrackets(world: World, career: Career | null = null): void {
         return m?.played === true;
       });
       if (allPlayed && !round.complete) {
-        // registra vencedores
+        // registra vencedores (e perdedores, para o playoff de acesso)
         const winners: string[] = [];
-        for (const id of round.matchIds) {
-          const m = store.matches.find((x) => x.id === id);
-          if (m) {
-            let w = winnerOf(m);
-            // defensivo: partida terminou sem vencedor definido (ex.: W.O. sem clubes,
-            // pênaltis ausentes em save antigo) → manda o mandante para a chave não travar
-            if (!w && m.homeScore !== null && m.awayScore !== null && m.homeId !== '__TBD__') {
-              w = m.homeId;
+        if (round.legs === 'two') {
+          // confrontos de ida e volta: agregado + pênaltis
+          for (let i = 0; i < round.matchIds.length; i += 2) {
+            const ida = store.matches.find((x) => x.id === round.matchIds[i]);
+            const volta = store.matches.find((x) => x.id === round.matchIds[i + 1]);
+            if (!ida || !volta) continue;
+            let res = aggregateWinner(ida, volta);
+            // defensivo: partida sem placar (save antigo) → manda o mandante da ida
+            if (!res && ida.homeScore !== null && ida.awayScore !== null && ida.homeId !== '__TBD__') {
+              res = { winner: ida.homeId, loser: ida.awayId };
             }
-            if (w && w !== '__TBD__' && world.clubs[w]) {
-              store.roundWinners[id] = w;
-              winners.push(w);
+            if (res && world.clubs[res.winner]) {
+              store.roundWinners[ida.id] = res.winner;
+              store.roundWinners[volta.id] = res.winner;
+              store.roundLosers![ida.id] = res.loser;
+              store.roundLosers![volta.id] = res.loser;
+              winners.push(res.winner);
+            }
+          }
+        } else {
+          for (const id of round.matchIds) {
+            const m = store.matches.find((x) => x.id === id);
+            if (m) {
+              let w = winnerOf(m);
+              if (!w && m.homeScore !== null && m.awayScore !== null && m.homeId !== '__TBD__') {
+                w = m.homeId;
+              }
+              if (w && w !== '__TBD__' && world.clubs[w]) {
+                store.roundWinners[id] = w;
+                const loser = w === m.homeId ? m.awayId : m.homeId;
+                store.roundLosers![id] = loser;
+                winners.push(w);
+              }
             }
           }
         }
@@ -135,13 +229,36 @@ export function syncBrackets(world: World, career: Career | null = null): void {
       }
     }
 
+    // Série D: registra os acessos (4 vencedores das quartas + 2 do playoff de acesso)
+    if (comp.knockoutAfterGroups && comp.rules.accessPlayoffLosers) {
+      const qf = comp.rounds.find((r) => r.name === 'Quartas de final');
+      if (qf && qf.complete && comp.status !== 'finished') {
+        const promoted: string[] = [];
+        for (const id of qf.matchIds.filter((_, i) => i % 2 === 0)) {
+          const w = store.roundWinners[id];
+          if (w && !promoted.includes(w)) promoted.push(w);
+        }
+        // vencedores do playoff de acesso
+        const accComp = world.competitions[comp.accessPlayoffId!];
+        const accStore = world.cupMatches[comp.accessPlayoffId!];
+        if (accComp && accStore && accComp.rounds[0]?.complete) {
+          for (const id of accComp.rounds[0].matchIds.filter((_, i) => i % 2 === 0)) {
+            const w = accStore.roundWinners[id];
+            if (w && !promoted.includes(w)) promoted.push(w);
+          }
+        }
+        comp.knockoutPromoted = promoted;
+      }
+    }
+
     // competição terminada? (guard: só registra o campeão uma vez)
     const last = comp.rounds[comp.rounds.length - 1];
+    if (comp.isAccessPlayoff) continue; // playoff de acesso: sem campeão próprio
     if (last && last.complete && comp.status !== 'finished') {
       comp.status = 'finished';
       const finalMatch = store.matches.find((m) => m.id === last.matchIds[0]);
       if (finalMatch) {
-        const championId = winnerOf(finalMatch);
+        const championId = store.roundWinners[last.matchIds[0]] ?? winnerOf(finalMatch);
         if (championId) {
           const runnerUpId = championId === finalMatch.homeId ? finalMatch.awayId : finalMatch.homeId;
           const championName = world.clubs[championId]?.name ?? '';

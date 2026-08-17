@@ -1291,7 +1291,12 @@ function applyMatchToWorld(
   // tabela da liga
   const comp = world.competitions[match.competitionId];
   if (comp && comp.type === 'league') {
-    applyLeagueStandings(comp, match, homeWon, draw);
+    // Série D (16 grupos): só a fase de grupos conta pontos na tabela; as partidas do
+    // mata-mata (round > 10) vivem no store de copa e não podem mexer na classificação.
+    const knockoutAfterGroups = comp.knockoutAfterGroups && match.round > 10;
+    if (!knockoutAfterGroups) {
+      applyLeagueStandings(comp, match, homeWon, draw);
+    }
   }
 }
 

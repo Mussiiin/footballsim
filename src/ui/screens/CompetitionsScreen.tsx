@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useGame } from '../../state/store';
 import { ClubCrest, FormRow, Modal, ResultPill } from '../components';
-import { sortedStandings, topScorersOf, topAssistsOf, currentCupRoundName, winnerOf, competitionMatches, matchForClubOnDate } from '../../game/competitions';
+import { sortedStandings, topScorersOf, topAssistsOf, currentCupRoundName, winnerOf, competitionMatches, matchForClubOnDate, compareStandings } from '../../game/competitions';
 import { Competition, CupMatchStore, Match } from '../../lib/types';
 import { formatDateBR } from '../../lib/date';
 import { fmtMoney } from '../../lib/format';
@@ -77,7 +77,7 @@ export function CompetitionsScreen() {
   // outras competições (para o seletor)
   const otherComps = useMemo(() => {
     return Object.values(world.competitions)
-      .filter((c) => !myCompIds.includes(c.id))
+      .filter((c) => !myCompIds.includes(c.id) && !c.isAccessPlayoff)
       .sort((a, b) => (a.countryId ?? '').localeCompare(b.countryId ?? '') || a.name.localeCompare(b.name));
   }, [world, myCompIds]);
 
@@ -140,8 +140,8 @@ export function CompetitionsScreen() {
       )}
 
       {/* conteúdo específico da competição */}
-      {comp.type === 'league' && <LeagueView comp={comp} world={world} onClub={(id) => navigate(`club:${id}`)} isMine={isMine} userClubId={clubId ?? ''} />}
-      {comp.type === 'cup' && <CupView comp={comp} world={world} onClub={(id) => navigate(`club:${id}`)} />}
+      {comp.type === 'league' && (comp.groups ? <SerieDView comp={comp} world={world} onClub={(id) => navigate(`club:${id}`)} isMine={isMine} userClubId={clubId ?? ''} /> : <LeagueView comp={comp} world={world} onClub={(id) => navigate(`club:${id}`)} isMine={isMine} userClubId={clubId ?? ''} />)}
+      {comp.type === 'cup' && !comp.isAccessPlayoff && <CupView comp={comp} world={world} onClub={(id) => navigate(`club:${id}`)} />}
       {comp.type === 'continental' && <CupView comp={comp} world={world} onClub={(id) => navigate(`club:${id}`)} continental />}
 
       {/* seletor */}
@@ -272,6 +272,180 @@ function CompetitionPicker({ myComps, otherComps, selectedId, primaryId, world, 
           {others.map((c) => <Item key={c.id} c={c} />)}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------
+// Série D (96 clubes → 16 grupos de 6 → mata-mata + playoff de acesso)
+// ------------------------------------------------------------
+function SerieDView({ comp, world, onClub, isMine, userClubId }: { comp: Competition; world: any; onClub: (id: string) => void; isMine: boolean; userClubId: string }) {
+  const { navigate } = useGame();
+  const store: CupMatchStore | undefined = world.cupMatches[comp.id];
+  const groups = comp.groups ?? [];
+  const accComp: Competition | undefined = comp.accessPlayoffId ? world.competitions[comp.accessPlayoffId] : undefined;
+  const accStore: CupMatchStore | undefined = comp.accessPlayoffId ? world.cupMatches[comp.accessPlayoffId] : undefined;
+  const userGroup = userClubId ? comp.clubGroup?.[userClubId] : null;
+
+  const groupTable = (g: NonNullable<Competition['groups']>[number]) => {
+    const rows = comp.standings
+      .filter((s) => comp.clubGroup?.[s.clubId] === g.id)
+      .sort(compareStandings);
+    return rows;
+  };
+
+  // vencedores conhecidos do chaveamento
+  const roundMatches = (round: (typeof comp.rounds)[number]) =>
+    (round.matchIds ?? [])
+      .map((id) => store?.matches.find((m) => m.id === id))
+      .filter((m): m is Match => !!m && m.homeId !== '__TBD__' && m.awayId !== '__TBD__');
+
+  return (
+    <div className="space-y-5">
+      {/* cabeçalho com o formato */}
+      <div className="card p-4 text-sm text-slate-400">
+        <p className="font-semibold text-slate-200 mb-1">🇧🇷 Formato Série D 2026</p>
+        <p>96 clubes → 16 grupos de 6 (ida+volta) → 64 classificados → mata-mata em ida e volta → 4 vencedores das quartas garantem acesso + 2 do playoff de acesso = <span className="text-accent font-bold">6 acessos à Série C</span>. Campeão definido na final em dois jogos.</p>
+      </div>
+
+      {/* fase de grupos */}
+      <div className="card p-5">
+        <div className="flex items-center gap-2 mb-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Fase de grupos · 16 grupos</p>
+          {userGroup && <span className="badge bg-accent/15 text-accent border border-accent/30">Seu grupo: {groups.find((g) => g.id === userGroup)?.name}</span>}
+        </div>
+        <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
+          {groups.map((g) => {
+            const rows = groupTable(g);
+            const qualified = rows.slice(0, 4).map((r) => r.clubId);
+            return (
+              <div key={g.id} className="rounded-lg border border-surface-700 bg-surface-800/40 overflow-hidden">
+                <p className="px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-400 bg-surface-800">{g.name}</p>
+                <table className="w-full text-xs">
+                  <tbody>
+                    {rows.map((s, i) => {
+                      const club = world.clubs[s.clubId];
+                      const isUser = club?.isUserControlled;
+                      const pos = i + 1;
+                      return (
+                        <tr key={s.clubId} onClick={() => onClub(s.clubId)} className={`border-t border-surface-700/40 cursor-pointer hover:bg-surface-800/60 ${isUser ? 'bg-accent/10' : ''} ${pos <= 4 ? 'border-l-2 border-l-emerald-500' : 'border-l-2 border-l-red-500/60'}`}>
+                          <td className="px-2 py-1.5 font-mono text-slate-500">{pos}º</td>
+                          <td className={`px-1 py-1.5 truncate ${isUser ? 'font-bold text-accent' : 'text-slate-300'}`}>{club?.shortName}</td>
+                          <td className="px-1 py-1.5 text-center font-display font-bold text-slate-100">{s.points}</td>
+                          <td className="px-2 py-1.5 text-center text-slate-500">{s.played}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {rows.length > 0 && qualified.length === 4 && (
+                  <p className="px-3 py-1.5 text-[10px] text-slate-600 border-t border-surface-700/40">🟢 top-4 classificados · 🔴 eliminados</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* mata-mata */}
+      {comp.rounds.length > 0 && (
+        <div className="card p-5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Mata-mata · ida e volta</p>
+          <div className="space-y-4">
+            {comp.rounds.map((round, ri) => {
+              const ms = roundMatches(round);
+              if (ms.length === 0) return null;
+              return (
+                <div key={ri}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-xs font-semibold text-slate-400">{round.name} {round.legs === 'two' && <span className="text-slate-600 font-normal">(ida/volta)</span>}</p>
+                    {round.complete && <span className="badge bg-accent/10 text-accent border border-accent/30">✓ concluída</span>}
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    {ms.map((m) => {
+                      const home = world.clubs[m.homeId];
+                      const away = world.clubs[m.awayId];
+                      const isUserMatch = userClubId && (m.homeId === userClubId || m.awayId === userClubId);
+                      return (
+                        <div key={m.id} className={`rounded-lg border p-2.5 text-sm ${isUserMatch ? 'border-accent/50 bg-accent/5' : 'border-surface-700 bg-surface-800/40'}`}>
+                          <div className="flex items-center gap-2 justify-between">
+                            <button onClick={() => onClub(m.homeId)} className="flex items-center gap-1.5 text-slate-300 hover:text-white min-w-0">
+                              <ClubCrest club={home} size={18} />
+                              <span className="truncate">{home?.shortName}</span>
+                            </button>
+                            <span className="font-mono font-bold text-slate-200 shrink-0">
+                              {m.played ? `${m.homeScore}-${m.awayScore}${m.penaltyShootout ? ` (${m.penaltyShootout.home}-${m.penaltyShootout.away} pen)` : ''}` : '—'}
+                            </span>
+                            <button onClick={() => onClub(m.awayId)} className="flex items-center gap-1.5 text-slate-300 hover:text-white min-w-0">
+                              <span className="truncate">{away?.shortName}</span>
+                              <ClubCrest club={away} size={18} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {/* vencedores das quartas ganham acesso */}
+                  {round.name === 'Quartas de final' && round.complete && (
+                    <p className="mt-1.5 text-[11px] text-emerald-400">🟢 Os 4 vencedores garantem acesso à Série C · perdedores vão ao playoff de acesso</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* playoff de acesso */}
+      {accComp && accStore && (
+        <div className="card p-5 border-gold/30">
+          <p className="text-xs font-semibold uppercase tracking-wider text-gold mb-1">⬆️ Playoffs de acesso à Série C</p>
+          <p className="text-[11px] text-slate-500 mb-3">Os 4 perdedores das quartas de final disputam 2 vagas restantes de acesso.</p>
+          <div className="space-y-2">
+            {accComp.rounds[0].matchIds
+              .map((id) => accStore.matches.find((m) => m.id === id))
+              .filter((m): m is Match => !!m && m.homeId !== '__TBD__' && m.awayId !== '__TBD__')
+              .map((m) => {
+                const home = world.clubs[m.homeId];
+                const away = world.clubs[m.awayId];
+                return (
+                  <div key={m.id} className="flex items-center gap-2 justify-between rounded-lg border border-surface-700 bg-surface-800/40 px-3 py-2 text-sm">
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <ClubCrest club={home} size={18} />
+                      <span className="truncate text-slate-300">{home?.shortName}</span>
+                    </span>
+                    <span className="font-mono font-bold text-slate-200">{m.played ? `${m.homeScore}-${m.awayScore}${m.penaltyShootout ? ` (${m.penaltyShootout.home}-${m.penaltyShootout.away} pen)` : ''}` : '—'}</span>
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <span className="truncate text-slate-300">{away?.shortName}</span>
+                      <ClubCrest club={away} size={18} />
+                    </span>
+                  </div>
+                );
+              })}
+          </div>
+          {comp.knockoutPromoted && comp.knockoutPromoted.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-surface-700/60">
+              <p className="text-xs font-semibold text-emerald-400 mb-1">⬆️ PROMOVIDOS À SÉRIE C:</p>
+              <div className="flex flex-wrap gap-2">
+                {comp.knockoutPromoted.map((id) => {
+                  const c = world.clubs[id];
+                  return c ? (
+                    <span key={id} className="badge bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">⬆️ {c.shortName}</span>
+                  ) : null;
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* campeão */}
+      {comp.status === 'finished' && comp.champions.length > 0 && (
+        <div className="card p-4 border-gold/40">
+          <p className="text-sm font-semibold text-gold">🏆 CAMPEÃO SÉRIE D {comp.season}: <span className="text-slate-100">{comp.champions[comp.champions.length - 1].champion}</span></p>
+          <p className="text-xs text-slate-500 mt-0.5">Vice: {comp.champions[comp.champions.length - 1].runnerUp}</p>
+        </div>
+      )}
     </div>
   );
 }

@@ -34,6 +34,20 @@ export function clubPrizeTier(club: Club): 'A' | 'B' {
   return div === 'L1' || div === 'L2' ? 'A' : 'B';
 }
 
+/** Premiação por fase da Série D 2026 (valores em R$). */
+const SERIED_2026 = {
+  participation: 250_000,                       // todos que disputam a fase de grupos
+  groupStage: 150_000,                          // classificação aos 64 (além da participação)
+  secondRound: { tierA: 300_000, tierB: 300_000 },
+  thirdRound: { tierA: 350_000, tierB: 350_000 },
+  roundOf16: 450_000,                           // oitavas
+  quarterFinal: 550_000,                        // quartas
+  semiFinal: 700_000,
+  accessPlayoff: 250_000,                       // playoff de acesso
+  runnerUp: 1_200_000,
+  champion: 2_500_000,
+};
+
 /** Constrói as regras de premiação de uma competição para a temporada. */
 export function buildPrizeRules(comp: Competition, season: string): CompetitionPrizeRules {
   const base = {
@@ -43,6 +57,12 @@ export function buildPrizeRules(comp: Competition, season: string): CompetitionP
   };
   if (comp.type === 'cup' && comp.countryId === 'brazil') {
     return { ...base, prizes: { ...COPABR_2026 } };
+  }
+  if (comp.rules.promotionByKnockout && comp.countryId === 'brazil') {
+    return { ...base, prizes: { ...SERIED_2026 } };
+  }
+  if (comp.isAccessPlayoff) {
+    return { ...base, prizes: { accessPlayoff: SERIED_2026.accessPlayoff } };
   }
   if (comp.type === 'continental') {
     return {
@@ -76,7 +96,10 @@ export function buildPrizeRules(comp: Competition, season: string): CompetitionP
 /** Regras da competição para a temporada atual (cria/cacheia se preciso). */
 export function getPrizeRules(world: World, compId: string): CompetitionPrizeRules | null {
   const comp = world.competitions[compId];
-  if (!comp || comp.type === 'league') return null;
+  if (!comp) return null;
+  // liga normal não tem premiação por fase; a Série D (liga com mata-mata) e os
+  // playoffs de acesso têm regras próprias
+  if (comp.type === 'league' && !comp.rules.promotionByKnockout) return null;
   const existing = world.competitionPrizeRules[compId];
   if (existing && existing.season === comp.season) return existing;
   const rules = buildPrizeRules(comp, comp.season);
@@ -99,6 +122,9 @@ export function stagePrizeFor(rules: CompetitionPrizeRules, stage: string, club:
     case 'Semifinal': return p.semiFinal ?? 0;
     case 'Campeão': return p.champion ?? 0;
     case 'Vice-campeão': return p.runnerUp ?? 0;
+    case 'Participação': return p.participation ?? 0;
+    case 'Classificação': return p.groupStage ?? 0;
+    case 'Playoffs de acesso': return p.accessPlayoff ?? 0;
     default: return 0;
   }
 }

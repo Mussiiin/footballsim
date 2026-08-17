@@ -11,7 +11,7 @@ import { seasonalDevelopment, agePlayers, processRetirements, advanceYouthSeason
 import { addNews, newsFromTitle, newsFromRetirement, notify } from './news';
 import { isVitalPlayer, squadOf } from './transfers';
 import { balanceAllSquads } from './squad';
-import { resetMatchCounter, leagueFixtures, cupFixtures, continentalFixtures } from './worldgen';
+import { resetMatchCounter, leagueFixtures, cupFixtures, continentalFixtures, serieDFixtures } from './worldgen';
 import { stadiumSeasonReset } from './stadium';
 
 function nextSeason(season: string): string {
@@ -58,22 +58,40 @@ function finalizeLeagues(world: World, summary: SeasonSummary): void {
         summary.positions[s.clubId] = i + 1;
       });
 
-      comp.champions.push({
-        season: comp.season,
-        champion: champion.name,
-        runnerUp: runnerUp.name,
-      });
-      champion.titles.push({ competitionId: comp.id, competitionName: comp.name, season: comp.season });
-      champion.reputation = clamp(champion.reputation + 2, 5, 99);
-      newsFromTitle(world, champion.name, comp.name, world.date);
+      if (comp.rules.promotionByKnockout) {
+        // Série D: o campeão sai do mata-mata (final), já registrado pelo syncBrackets
+        const lastChamp = comp.champions[comp.champions.length - 1];
+        const koStore = world.cupMatches[comp.id];
+        const finalRound = comp.rounds[comp.rounds.length - 1];
+        const championId = koStore?.roundWinners[finalRound?.matchIds?.[0] ?? ''] ?? '';
+        if (lastChamp) {
+          summary.leagues.push({
+            competitionId: comp.id,
+            name: comp.name,
+            champion: lastChamp.champion,
+            runnerUp: lastChamp.runnerUp,
+            championId,
+          });
+          newsFromTitle(world, lastChamp.champion, comp.name, world.date);
+        }
+      } else {
+        comp.champions.push({
+          season: comp.season,
+          champion: champion.name,
+          runnerUp: runnerUp.name,
+        });
+        champion.titles.push({ competitionId: comp.id, competitionName: comp.name, season: comp.season });
+        champion.reputation = clamp(champion.reputation + 2, 5, 99);
+        newsFromTitle(world, champion.name, comp.name, world.date);
 
-      summary.leagues.push({
-        competitionId: comp.id,
-        name: comp.name,
-        champion: champion.name,
-        runnerUp: runnerUp.name,
-        championId: champion.id,
-      });
+        summary.leagues.push({
+          competitionId: comp.id,
+          name: comp.name,
+          champion: champion.name,
+          runnerUp: runnerUp.name,
+          championId: champion.id,
+        });
+      }
 
       // promoção e rebaixamento
       if (comp.rules.relegationSpots > 0) {
@@ -87,7 +105,17 @@ function finalizeLeagues(world: World, summary: SeasonSummary): void {
           }
         }
       }
-      if (comp.rules.promotionSpots > 0) {
+      if (comp.rules.promotionByKnockout) {
+        // Série D: os acessos saem do mata-mata (4 vencedores das quartas + 2 do playoff de acesso)
+        const toId = `${country.id}_L${Math.max(1, comp.tier - 1)}`;
+        for (const cid of comp.knockoutPromoted ?? []) {
+          const club = world.clubs[cid];
+          if (club && world.competitions[toId]) {
+            summary.promoted.push({ clubId: cid, from: comp.id, to: toId });
+            club.reputation = clamp(club.reputation + 3, 5, 99);
+          }
+        }
+      } else if (comp.rules.promotionSpots > 0) {
         const top = sorted.slice(0, comp.rules.promotionSpots).map((s) => s.clubId);
         for (const cid of top) {
           const club = world.clubs[cid];
@@ -508,7 +536,13 @@ export function startNextSeason(world: World, career: Career | null, difficulty:
     cup.rounds = [];
     cup.currentRoundIndex = 0;
     for (const lid of country.divisions) {
-      for (const cid of world.competitions[lid].clubIds) cup.clubIds.push(cid);
+      const comp = world.competitions[lid];
+      let ids = comp.clubIds;
+      // Copa do Brasil: todas as Séries A/B/C + os 20 melhores da Série D (formato de 80 clubes)
+      if (country.id === 'brazil' && lid === 'brazil_L4') {
+        ids = [...comp.clubIds].sort((a, b) => world.clubs[b].reputation - world.clubs[a].reputation).slice(0, 20);
+      }
+      for (const cid of ids) cup.clubIds.push(cid);
     }
   }
   const cont2 = world.competitions['CONTINENTAL'];
@@ -538,7 +572,17 @@ function regenerateCalendar(world: World): void {
   for (const country of world.countries) {
     for (const lid of country.divisions) {
       const comp = world.competitions[lid];
-      world.leagueMatches[comp.id] = leagueFixtures(comp.clubIds, world, rng, comp);
+      if (comp.rules.promotionByKnockout && comp.id === 'brazil_L4') {
+        // reconstrói a Série D (grupos + mata-mata + playoff) com os clubes da nova temporada
+        comp.groups = undefined;
+        comp.clubGroup = undefined;
+        comp.rounds = [];
+        comp.knockoutPromoted = [];
+        comp.status = 'scheduled';
+        serieDFixtures(comp, world, rng);
+      } else {
+        world.leagueMatches[comp.id] = leagueFixtures(comp.clubIds, world, rng, comp);
+      }
     }
     const cup = world.competitions[country.cupId];
     const cf = cupFixtures(cup, world, rng);
@@ -564,6 +608,27 @@ export function isSeasonOver(world: World): boolean {
   for (const list of Object.values(world.leagueMatches)) {
     for (const m of list) {
       if (!m.played) return false;
+    }
+  }
+  // Série D: o mata-mata (2ª fase → final) e o playoff de acesso vivem nos stores de copa
+  // e também precisam terminar antes de encerrar a temporada — senão o acesso/campeão ficam
+  // pela metade e a chave trava.
+  for (const comp of Object.values(world.competitions)) {
+    if (comp.isAccessPlayoff) continue;
+    if (!comp.knockoutAfterGroups && !comp.accessPlayoffId) continue;
+    const store = world.cupMatches[comp.id];
+    if (store) {
+      for (const m of store.matches) {
+        if (!m.played && m.homeId !== '__TBD__' && m.awayId !== '__TBD__') return false;
+      }
+    }
+    if (comp.accessPlayoffId) {
+      const acc = world.cupMatches[comp.accessPlayoffId];
+      if (acc) {
+        for (const m of acc.matches) {
+          if (!m.played && m.homeId !== '__TBD__' && m.awayId !== '__TBD__') return false;
+        }
+      }
     }
   }
   return true;

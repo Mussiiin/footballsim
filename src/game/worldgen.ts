@@ -2,6 +2,7 @@ import {
   World, Club, Player, Competition, Country, Position, PositionGroup,
   Personality, Stadium, Coach, StaffMember, StaffRole, ClubObjective, ClubTier,
   Contract, SeasonStats, PlayerHistoryEntry, Match, CupRound, RecordItem, MatchRef,
+  CupMatchStore,
   POSITION_GROUPS, StadiumSectorId, StadiumSector,
 } from '../lib/types';
 import { SECTOR_IDS, allocateSectorSeats } from './stadium';
@@ -612,11 +613,15 @@ function createLeagueCompetition(country: CountryData, tier: number, season: str
     champions: [],
     topScorers: [],
     rules: {
-      promotionSpots: tier === 1 ? 0 : isBrazil ? 4 : 3,
-      relegationSpots: isBrazil ? (tier === 4 ? 0 : 4) : tier === 3 ? 0 : 3,
+      promotionSpots: tier === 1 ? 0 : isBrazil ? (tier === 4 ? 0 : 4) : 3,
+      relegationSpots: isBrazil ? (tier === 4 ? 0 : tier === 3 ? 6 : 4) : tier === 3 ? 0 : 3,
       continentalSpots: tier === 1 ? 4 : 0,
       sudamericanaSpots: tier === 1 && isBrazil ? 2 : 0,
       points: 3,
+      // Série D 2026: 96 clubes → 16 grupos de 6 → mata-mata de 64 (ida/volta) + playoff de acesso.
+      // Promoção sai do chaveamento (4 vencedores das quartas + 2 dos playoffs = 6 acessos).
+      promotionByKnockout: isBrazil && tier === 4,
+      accessPlayoffLosers: isBrazil && tier === 4 ? 4 : 0,
     },
   };
 }
@@ -1012,6 +1017,194 @@ export function continentalFixtures(comp: Competition, world: World, rng: RNG): 
 }
 
 // ------------------------------------------------------------
+// Calendário — Série D 2026 (96 clubes → 16 grupos de 6 → mata-mata + playoff de acesso)
+// ------------------------------------------------------------
+const SERIE_D_GROUPS = 16;
+const SERIE_D_GROUP_SIZE = 6;
+const SERIE_D_ROUNDS_PER_GROUP = SERIE_D_GROUP_SIZE - 1; // 5 (ida) + 5 (volta) = 10 rodadas
+const SERIE_D_ACCESS_ID = 'brazil_L4_ACCESS';
+
+/** round-robin simples (ida) de um grupo; retorna rodadas com pares [home, away]. */
+function serieDGroupRoundRobin(teams: string[], rng: RNG): [string, string][][] {
+  const list = rng.shuffle([...teams]);
+  const n = list.length;
+  const rounds: [string, string][][] = [];
+  // método do círculo: fixa o primeiro e rotaciona os demais
+  for (let r = 0; r < n - 1; r++) {
+    const pairs: [string, string][] = [];
+    for (let i = 0; i < n / 2; i++) {
+      const a = list[i];
+      const b = list[n - 1 - i];
+      pairs.push(r % 2 === 0 ? [a, b] : [b, a]);
+    }
+    rounds.push(pairs);
+    list.splice(1, 0, list.pop()!);
+  }
+  return rounds;
+}
+
+/** Gera TODA a Série D de uma temporada (grupos + mata-mata + playoff de acesso). */
+export function serieDFixtures(comp: Competition, world: World, rng: RNG): void {
+  const seasonYear = Number(world.season.slice(0, 4));
+  const baseDate = `${seasonYear}-08-15`; // sábado — mesma base das ligas
+  const mkMatch = (round: number, date: string, importance: number): Match => ({
+    id: mid(),
+    competitionId: comp.id,
+    season: world.season,
+    date,
+    homeId: '__TBD__',
+    awayId: '__TBD__',
+    round,
+    played: false,
+    homeScore: null,
+    awayScore: null,
+    events: [],
+    stats: null,
+    playerStats: null,
+    homeLineup: [],
+    awayLineup: [],
+    homeFormation: '4-4-2',
+    awayFormation: '4-4-2',
+    attendance: null,
+    importance,
+    weather: rng.pick(['Ensolarado', 'Nublado', 'Chuva leve', 'Chuva forte', 'Vento']),
+    penaltyShootout: null,
+    homeName: '',
+    awayName: '',
+    extraTimePlayed: false,
+    substitutions: [],
+  });
+
+  // ---- 1) sorteio equilibrado dos 16 grupos (snake por força) ----
+  const clubs = [...comp.clubIds].sort((a, b) => world.clubs[b].squadStrength - world.clubs[a].squadStrength);
+  const groups: string[][] = Array.from({ length: SERIE_D_GROUPS }, () => []);
+  for (let i = 0; i < clubs.length; i++) {
+    const g = i % SERIE_D_GROUPS;
+    // snake: inverte a ordem a cada linha para equilibrar forças
+    const row = Math.floor(i / SERIE_D_GROUPS);
+    groups[row % 2 === 0 ? g : SERIE_D_GROUPS - 1 - g].push(clubs[i]);
+  }
+  const groupNames = 'ABCDEFGHIJKLMNOP'.split('').map((L) => `Grupo ${L}`);
+  comp.groups = groups.map((ids, i) => ({ id: `g${i}`, name: groupNames[i], clubIds: ids }));
+  comp.clubGroup = {};
+  const groupsMap: Record<string, number> = {};
+  groups.forEach((ids, gi) => {
+    ids.forEach((cid) => {
+      comp.clubGroup![cid] = `g${gi}`;
+      groupsMap[cid] = gi;
+    });
+  });
+
+  // ---- 2) fase de grupos: ida+volta dentro de cada grupo (10 rodadas, 48 jogos/rodada) ----
+  const groupMatches: Match[] = [];
+  for (let gi = 0; gi < SERIE_D_GROUPS; gi++) {
+    const firstLeg = serieDGroupRoundRobin(groups[gi], rng);
+    const secondLeg = firstLeg.map((rd) => rd.map(([h, a]) => [a, h] as [string, string]));
+    [...firstLeg, ...secondLeg].forEach((round, ri) => {
+      const date = addDays(baseDate, ri * 7);
+      round.forEach(([home, away]) => {
+        const m = mkMatch(ri + 1, date, 30);
+        m.homeId = home;
+        m.awayId = away;
+        m.homeName = world.clubs[home]?.name ?? '';
+        m.awayName = world.clubs[away]?.name ?? '';
+        groupMatches.push(m);
+      });
+    });
+  }
+  world.leagueMatches[comp.id] = groupMatches;
+
+  // ---- 3) mata-mata: 64 → 32 → 16 → 8 → 4 → 2 → 1 (ida/volta) ----
+  const ko: CupMatchStore = { matches: [], roundWinners: {}, roundLosers: {}, refs: {}, groups: groupsMap };
+  const names = ['2ª Fase', '3ª Fase', 'Oitavas de final', 'Quartas de final', 'Semifinal', 'Final'];
+  const rounds: CupRound[] = names.map((name) => ({
+    name, legs: 'two' as const, extraTime: true, penalties: true, matchIds: [], complete: false,
+  }));
+  // datas: 2ª Fase logo após os grupos (10 rodadas = 70 dias); cada fase = 2 semanas (ida + volta)
+  const koStart = SERIE_D_ROUNDS_PER_GROUP * 2 * 7; // dia 70
+  const koDates = names.map((_, i) => [
+    addDays(baseDate, koStart + i * 14),
+    addDays(baseDate, koStart + i * 14 + 7),
+  ]);
+
+  const tie = (roundIdx: number, homeRef: MatchRef, awayRef: MatchRef) => {
+    const [d1, d2] = koDates[roundIdx];
+    const ida = mkMatch(SERIE_D_ROUNDS_PER_GROUP * 2 + roundIdx + 1, d1, 60 + roundIdx * 5);
+    const volta = mkMatch(SERIE_D_ROUNDS_PER_GROUP * 2 + roundIdx + 1, d2, 60 + roundIdx * 5);
+    ida.homeId = '__TBD__'; ida.awayId = '__TBD__';
+    volta.homeId = '__TBD__'; volta.awayId = '__TBD__';
+    ko.refs[ida.id] = { home: homeRef, away: awayRef };
+    ko.refs[volta.id] = { home: awayRef, away: homeRef }; // manda o visitante em casa na volta
+    ko.matches.push(ida, volta);
+    rounds[roundIdx].matchIds.push(ida.id, volta.id);
+  };
+
+  // 2ª Fase (32 jogos): 1º×4º e 2º×3º entre pares de grupos
+  let prevIda: string[] = [];
+  for (let gp = 0; gp < SERIE_D_GROUPS / 2; gp++) {
+    const gA = gp * 2, gB = gp * 2 + 1;
+    const order: [number, number][] = [[0, 3], [1, 2], [2, 1], [3, 0]];
+    for (const [pA, pB] of order) {
+      const homeRef: MatchRef = { kind: 'group', group: gA, pos: pA };
+      const awayRef: MatchRef = { kind: 'group', group: gB, pos: pB };
+      tie(0, homeRef, awayRef);
+    }
+  }
+  prevIda = rounds[0].matchIds.filter((_, i) => i % 2 === 0);
+
+  // fases seguintes: vencedores dos confrontos anteriores
+  for (let ri = 1; ri < 6; ri++) {
+    const nTies = prevIda.length / 2;
+    for (let i = 0; i < nTies; i++) {
+      tie(ri, { kind: 'winner', matchId: prevIda[i * 2] }, { kind: 'winner', matchId: prevIda[i * 2 + 1] });
+    }
+    prevIda = rounds[ri].matchIds.filter((_, i) => i % 2 === 0);
+  }
+
+  comp.rounds = rounds;
+  comp.knockoutAfterGroups = true;
+  comp.accessPlayoffId = SERIE_D_ACCESS_ID;
+  world.cupMatches[comp.id] = ko;
+
+  // ---- 4) Playoffs de acesso: 4 perdedores das quartas → 2 acessos (ida/volta) ----
+  const qfIdas = rounds[3].matchIds.filter((_, i) => i % 2 === 0); // 4 jogos das quartas
+  const accessComp: Competition = {
+    id: SERIE_D_ACCESS_ID,
+    name: 'Playoffs de acesso — Série D',
+    shortName: '⬆️ Acesso',
+    countryId: 'brazil',
+    type: 'cup',
+    isAccessPlayoff: true,
+    knockoutAfterGroups: true,
+    tier: 4,
+    season: world.season,
+    clubIds: [],
+    standings: [],
+    rounds: [{ name: 'Playoffs de acesso', legs: 'two', extraTime: true, penalties: true, matchIds: [], complete: false }],
+    currentRoundIndex: 0,
+    status: 'scheduled',
+    prizeMoney: { champion: 0, runnerUp: 0 },
+    champions: [],
+    topScorers: [],
+    rules: { promotionSpots: 0, relegationSpots: 0, continentalSpots: 0, points: 3 },
+  };
+  world.competitions[SERIE_D_ACCESS_ID] = accessComp;
+  const accessStore: CupMatchStore = { matches: [], roundWinners: {}, roundLosers: {}, refs: {} };
+  const [d1, d2] = [addDays(baseDate, koStart + 4 * 14), addDays(baseDate, koStart + 4 * 14 + 7)];
+  for (let i = 0; i < 2; i++) {
+    const ida = mkMatch(1, d1, 70);
+    const volta = mkMatch(1, d2, 70);
+    const h: MatchRef = { kind: 'loser', matchId: qfIdas[i * 2], competitionId: comp.id };
+    const a: MatchRef = { kind: 'loser', matchId: qfIdas[i * 2 + 1], competitionId: comp.id };
+    accessStore.refs[ida.id] = { home: h, away: a };
+    accessStore.refs[volta.id] = { home: a, away: h };
+    accessStore.matches.push(ida, volta);
+    accessComp.rounds[0].matchIds.push(ida.id, volta.id);
+  }
+  world.cupMatches[SERIE_D_ACCESS_ID] = accessStore;
+}
+
+// ------------------------------------------------------------
 // Geração completa do mundo
 // ------------------------------------------------------------
 export function generateWorld(seed: string, season = '2026/27'): World {
@@ -1092,7 +1285,13 @@ export function generateWorld(seed: string, season = '2026/27'): World {
     const cup = createCupCompetition(cd, season);
     world.competitions[cup.id] = cup;
     for (const lid of country.divisions) {
-      for (const cid of world.competitions[lid].clubIds) cup.clubIds.push(cid);
+      const comp = world.competitions[lid];
+      let ids = comp.clubIds;
+      // Copa do Brasil: todas as Séries A/B/C + os 20 melhores da Série D (formato de 80 clubes)
+      if (cd.id === 'brazil' && lid === 'brazil_L4') {
+        ids = [...comp.clubIds].sort((a, b) => world.clubs[b].reputation - world.clubs[a].reputation).slice(0, 20);
+      }
+      for (const cid of ids) cup.clubIds.push(cid);
     }
     world.countries.push(country);
   }
@@ -1188,7 +1387,12 @@ export function generateWorld(seed: string, season = '2026/27'): World {
       comp.standings = comp.clubIds.map((clubId) => ({
         clubId, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, gd: 0, points: 0, form: [],
       }));
-      world.leagueMatches[comp.id] = leagueFixtures(comp.clubIds, world, rng, comp);
+      if (comp.rules.promotionByKnockout && comp.id === 'brazil_L4') {
+        // Série D 2026: 16 grupos de 6 (ida+volta) → mata-mata de 64 + playoff de acesso
+        serieDFixtures(comp, world, rng);
+      } else {
+        world.leagueMatches[comp.id] = leagueFixtures(comp.clubIds, world, rng, comp);
+      }
     }
     const cup = world.competitions[c.cupId];
     const cf = cupFixtures(cup, world, rng);

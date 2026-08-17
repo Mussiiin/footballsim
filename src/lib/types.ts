@@ -310,6 +310,9 @@ export interface CompetitionPrizeRules {
     semiFinal?: number;                         // Semifinal
     runnerUp?: number;                          // Final — vice-campeão
     champion?: number;                          // Final — campeão
+    participation?: number;                     // Participação (Série D)
+    groupStage?: number;                        // Classificação na fase de grupos (Série D)
+    accessPlayoff?: number;                     // Playoff de acesso (Série D)
   };
 }
 
@@ -388,8 +391,19 @@ export interface Competition {
   tier: number;             // 1 = 1ª divisão
   season: string;
   clubIds: string[];
-  standings: StandingRow[]; // ligas
-  rounds: CupRound[];       // copas
+  standings: StandingRow[]; // ligas (fase de grupos = tabela única com todos os clubes)
+  /** Fase de grupos (ex.: Série D — 16 grupos de 6). standings é a tabela única; clubGroup mapeia o clube ao grupo. */
+  groups?: CompetitionGroup[];
+  clubGroup?: Record<string, string>; // clubId -> grupo.id
+  /** Mata-mata após a fase de grupos; o campeão e os acessos saem do chaveamento, não da tabela. */
+  knockoutAfterGroups?: boolean;
+  /** Competição de playoff de acesso (ex.: Série D — 4 perdedores das quartas → 2 acessos). */
+  accessPlayoffId?: string;
+  /** Clubes promovidos por avanço no mata-mata (4 vencedores das quartas + 2 do playoff). */
+  knockoutPromoted?: string[];
+  /** Competição interna de playoff de acesso (não tem campeão próprio). */
+  isAccessPlayoff?: boolean;
+  rounds: CupRound[];       // copas / mata-mata
   currentRoundIndex: number;
   status: 'scheduled' | 'ongoing' | 'finished';
   prizeMoney: { champion: number; runnerUp: number; [pos: number]: number };
@@ -402,6 +416,10 @@ export interface Competition {
     /** Vagas extras de segunda competição continental (ex.: Sul-Americana). Zona visual na tabela. */
     sudamericanaSpots?: number;
     points: number;
+    /** Promoção sai do mata-mata (ex.: Série D — vencedores de quartas + playoff de acesso). */
+    promotionByKnockout?: boolean;
+    /** Quantos perdedores das quartas entram no playoff de acesso. */
+    accessPlayoffLosers?: number;
   };
 }
 
@@ -1036,12 +1054,23 @@ export interface World {
 export type MatchRef =
   | { kind: 'club'; id: string }
   | { kind: 'winner'; matchId: string }
+  | { kind: 'loser'; matchId: string; competitionId?: string }  // perdedor de um confronto (ex.: playoff de acesso)
   | { kind: 'group'; group: number; pos: number };
 
 export interface CupMatchStore {
   matches: Match[];
   roundWinners: Record<string, string>; // matchId -> clubId vencedor
+  roundLosers?: Record<string, string>; // matchId -> clubId perdedor (para refs 'loser')
   refs: Record<string, { home: MatchRef; away: MatchRef }>;
+  /** Mapa clube -> grupo (para refs 'group' em ligas com fase de grupos, ex.: Série D). */
+  groups?: Record<string, number>;
+}
+
+/** Grupo de fase de grupos de uma liga (ex.: Série D — 16 grupos de 6). */
+export interface CompetitionGroup {
+  id: string;
+  name: string;      // 'Grupo A' ... 'Grupo P'
+  clubIds: string[];
 }
 
 export interface ContinentalMatchStore extends CupMatchStore {

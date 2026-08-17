@@ -37,8 +37,8 @@ export function isInTransferWindow(world: World, date: string): boolean {
   return (mmdd >= s.start && mmdd <= s.end) || (mmdd >= w.start && mmdd <= w.end);
 }
 
-function deciderFor(compType: string | undefined, matchRound: number): 'none' | 'extra+penalties' {
-  if (compType === 'league') return 'none';
+function deciderFor(compType: string | undefined, matchRound: number, comp?: { knockoutAfterGroups?: boolean }): 'none' | 'extra+penalties' {
+  if (compType === 'league' && !(comp?.knockoutAfterGroups && matchRound > 10)) return 'none';
   if (compType === 'continental' && matchRound <= 4) return 'none';
   return 'extra+penalties';
 }
@@ -48,7 +48,7 @@ function simOptsForMatch(world: World, career: Career | null, match: Match) {
   const isUserMatch = career !== null && (match.homeId === career.clubId || match.awayId === career.clubId);
   const difficulty = career?.difficulty ?? 'Normal';
   const cfg = DIFFICULTY_CONFIG[difficulty];
-  const decider = deciderFor(comp?.type, match.round);
+  const decider = deciderFor(comp?.type, match.round, comp);
 
   if (isUserMatch && career) {
     const userIsHome = match.homeId === career.clubId;
@@ -158,7 +158,10 @@ function repairOverdueMatches(world: World, career: Career | null): number {
     m.events = [{ minute: 1, type: 'kickoff', team: 'home', detail: 'W.O. — clube ausente' }];
     const comp = world.competitions[m.competitionId];
     if (comp && comp.type === 'league') {
-      applyLeagueStandings(comp, m, (m.homeScore ?? 0) > (m.awayScore ?? 0), (m.homeScore ?? 0) === (m.awayScore ?? 0));
+      const knockoutAfterGroups = comp.knockoutAfterGroups && m.round > 10;
+      if (!knockoutAfterGroups) {
+        applyLeagueStandings(comp, m, (m.homeScore ?? 0) > (m.awayScore ?? 0), (m.homeScore ?? 0) === (m.awayScore ?? 0));
+      }
     }
     repaired++;
   };
