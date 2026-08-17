@@ -34,13 +34,28 @@ export interface UpdateNoteVersion {
 }
 
 /** Versão do build atual do jogo (a mais recente disponível). */
-export const GAME_VERSION = '1.8.9';
+export const GAME_VERSION = '1.8.10';
 
 /** Versão "instalada" padrão de quem nunca passou por uma atualização. */
 const DEFAULT_APPLIED_VERSION = '1.4.2';
 
 /** Histórico completo de versões (mais recente primeiro). */
 export const UPDATE_HISTORY: UpdateNoteVersion[] = [
+  {
+    version: '1.8.10',
+    title: 'Publicação, Central de mensagens',
+    date: '17/08/2026',
+    required: false,
+    newFeatures: [
+      { title: 'Publicação, Central de mensagens', description: 'scripts/publish.mjs: Sistema de publicação' },
+    ],
+    improvements: [
+    ],
+    bugFixes: [
+    ],
+    football: [
+    ],
+  },
   {
     version: '1.8.9',
     title: 'Atualização 1.8.9',
@@ -49,6 +64,9 @@ export const UPDATE_HISTORY: UpdateNoteVersion[] = [
     newFeatures: [
     ],
     improvements: [
+      { title: 'Sistema de publicação com patch notes automáticas', description: 'O fluxo de publicação agora gera notas descritivas do que foi implementado, arquivo por arquivo.' },
+      { title: 'Finanças', description: 'Card "Saldo mensal previsto" com legenda mais clara na tela de Finanças.' },
+      { title: 'Calendário', description: 'Mensagem de agenda vazia mais clara: "Nenhuma partida agendada nos próximos dias".' },
     ],
     bugFixes: [
     ],
