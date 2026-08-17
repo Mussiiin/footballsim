@@ -34,13 +34,38 @@ export interface UpdateNoteVersion {
 }
 
 /** Versão do build atual do jogo (a mais recente disponível). */
-export const GAME_VERSION = '1.7.1';
+export const GAME_VERSION = '1.8.0';
 
 /** Versão "instalada" padrão de quem nunca passou por uma atualização. */
 const DEFAULT_APPLIED_VERSION = '1.4.2';
 
 /** Histórico completo de versões (mais recente primeiro). */
 export const UPDATE_HISTORY: UpdateNoteVersion[] = [
+  {
+    version: '1.8.0',
+    title: 'Recrutamento, pré-contrato, sondagens e elencos',
+    date: '17/08/2026',
+    required: false,
+    newFeatures: [
+      { title: 'Conversa de recrutamento com jogador de outro clube', description: 'Ao conversar com um jogador que ainda pertence a outro clube, o popup agora abre um contexto separado: projeto do clube, papel no elenco, salário e interesse na transferência — sem queixas de banco ou promessas de minutos que só fazem sentido para o nosso elenco.' },
+      { title: 'Sondagens com a janela de transferências fechada', description: 'O mercado continua vivo fora da janela: faça sondagens, converse com o jogador, monitore e negocie para a próxima janela. Transferência normal só é registrada durante a janela.' },
+      { title: 'Pré-contrato por contrato individual', description: 'A opção de pré-contrato só aparece para jogadores realmente elegíveis (contrato terminando em até 6 meses), analisando a data de término de cada contrato.' },
+      { title: 'Elencos padronizados de 28 jogadores', description: 'Todos os clubes agora seguem o padrão 3 goleiros, 8 defensores, 8 meio-campistas e 9 atacantes, com hierarquia de titular/rotação/reserva/jovem e força por divisão.' },
+    ],
+    improvements: [
+      { title: 'Ficha do clube com composição do elenco', description: 'Barras de profundidade por posição e avisos de elenco incompleto ou cheio, com dica de empréstimo quando necessário.' },
+      { title: 'Aviso de elenco na Central de Transferências', description: 'Banner dinâmico que indica se o elenco está no padrão, cheio (venda/empreste antes de contratar) ou carente de opções.' },
+      { title: 'Conversa de recrutamento vinculada à negociação', description: 'As respostas na conversa com jogador de outro clube ajustam o interesse real da negociação em andamento.' },
+    ],
+    bugFixes: [
+      { title: 'Pré-contrato aparecendo para todos os jogadores', description: 'Jogadores com contrato longo (ex.: até 2030) não mostram mais a opção de pré-contrato nem a mensagem de "contrato acabando".' },
+      { title: 'Conversa interna abrindo para jogador de outro clube', description: 'Jogadores de outros clubes nunca mais recebem opções de gestão do elenco (banco, minutos, promessas) — sempre o contexto de recrutamento.' },
+      { title: 'Renovação podia encurtar o contrato', description: 'Renovar o contrato de um jogador com vínculo longo não reduz mais o tempo restante — a renovação parte do fim atual do contrato.' },
+    ],
+    football: [
+      { title: 'Mercado realista fora da janela', description: 'Sondagem, monitoramento, negociação antecipada e pré-contrato acontecem mesmo com a janela fechada, como no futebol real.' },
+    ],
+  },
   {
     version: '1.7.1',
     title: 'Conversa com jogador nas transferências e compras',
