@@ -28,6 +28,31 @@ export function DashboardScreen() {
   const pos = leagueComp && club ? positionOf(leagueComp, club.id) : 0;
   const standings = leagueComp ? sortedStandings(leagueComp).slice(0, 8) : [];
 
+  // fase atual de uma liga com mata-mata (ex.: Série D) — onde o usuário está agora
+  const leaguePhase = useMemo(() => {
+    if (!leagueComp || !clubId || !leagueComp.knockoutAfterGroups) return null;
+    const store = world.cupMatches[leagueComp.id];
+    const koMatches = store?.matches ?? [];
+    const inKo = (id: string) => koMatches.some((m) => m.homeId === id || m.awayId === id);
+    if (!inKo(clubId)) return 'Fase de grupos';
+    const rounds = leagueComp.rounds ?? [];
+    let lastIdx = -1;
+    rounds.forEach((r, ri) => {
+      if (r.matchIds.some((id) => koMatches.some((m) => m.id === id && (m.homeId === clubId || m.awayId === clubId)))) lastIdx = ri;
+    });
+    if (lastIdx < 0) return 'Fase de grupos';
+    const round = rounds[lastIdx];
+    const userMatches = koMatches.filter((m) => round.matchIds.includes(m.id) && (m.homeId === clubId || m.awayId === clubId));
+    const playedCount = userMatches.filter((m) => m.played).length;
+    const expected = Math.min(2, userMatches.length);
+    if (playedCount < expected) return round.name;
+    // fase jogada: avançou se a próxima tem partida dele
+    const nextHas = lastIdx + 1 < rounds.length && rounds[lastIdx + 1].matchIds.some((id) =>
+      koMatches.some((m) => m.id === id && (m.homeId === clubId || m.awayId === clubId)),
+    );
+    return nextHas ? rounds[lastIdx + 1].name : `Eliminado: ${round.name}`;
+  }, [leagueComp, world, clubId]);
+
   const doAdvance = async (kind: 'day' | 'week' | 'match') => {
     setAdvancing(kind);
     setAdvanceResult(null);
@@ -122,7 +147,7 @@ export function DashboardScreen() {
       {/* stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <StatCard icon={<CalendarDays size={18} />} label="Próxima partida" value={next ? `vs ${next.homeId === clubId ? world.clubs[next.awayId].shortName : world.clubs[next.homeId].shortName}` : '—'} sub={next ? `${world.competitions[next.competitionId]?.name ?? ''} · ${formatDateBR(next.date)}` : 'Sem partidas'} />
-        <StatCard icon={<Users size={18} />} label="Posição na liga" value={`${pos}º`} sub={leagueComp?.name ?? ''} />
+        <StatCard icon={<Users size={18} />} label="Posição na liga" value={`${pos}º`} sub={leaguePhase ? `${leagueComp?.name ?? ''} · ${leaguePhase}` : (leagueComp?.name ?? '')} />
         <StatCard icon={<Wallet size={18} />} label="Caixa" value={fmtMoney(club.balance)} sub={`Orçamento ${fmtMoney(club.budget)}`} accent="bg-gold/10 text-gold" />
         <StatCard label="Força do elenco" value={club.squadStrength.toFixed(1)} sub={`${squad.length} jogadores · ${club.averageAge.toFixed(1)} anos`} />
       </div>

@@ -300,12 +300,55 @@ function SerieDView({ comp, world, onClub, isMine, userClubId }: { comp: Competi
       .map((id) => store?.matches.find((m) => m.id === id))
       .filter((m): m is Match => !!m && m.homeId !== '__TBD__' && m.awayId !== '__TBD__');
 
+  // fase atual do usuário: a fase do mata-mata em que ele ainda está vivo (ou a última que disputou)
+  const userPhase = (() => {
+    if (!userClubId) return null;
+    // fase de grupos ainda em andamento?
+    const groupMatches: Match[] = Object.values((world.leagueMatches[comp.id] ?? []) as Match[]);
+    const groupUnplayed = groupMatches.some((m) => !m.played && (m.homeId === userClubId || m.awayId === userClubId));
+    const groupPlayed = groupMatches.filter((m) => m.played && (m.homeId === userClubId || m.awayId === userClubId)).length;
+    if (groupUnplayed || groupPlayed < 10) { // 10 jogos de fase de grupos (ida+volta, 5×2)
+      return { name: 'Fase de grupos', inProgress: true, eliminated: false };
+    }
+    // encontra a última fase do mata-mata em que o usuário disputou partida
+    let lastIdx = -1;
+    comp.rounds.forEach((r, ri) => {
+      const hasUser = r.matchIds.some((id) => {
+        const m = store?.matches.find((x) => x.id === id);
+        return !!m && (m.homeId === userClubId || m.awayId === userClubId);
+      });
+      if (hasUser) lastIdx = ri;
+    });
+    if (lastIdx < 0) return { name: 'Fase de grupos', inProgress: false, eliminated: true };
+    const round = comp.rounds[lastIdx];
+    const ms = roundMatches(round);
+    const userMatches = ms.filter((m) => m.homeId === userClubId || m.awayId === userClubId);
+    const userPlayed = userMatches.filter((m) => m.played);
+    // se não jogou os 2 jogos da fase, está na fase atual
+    if (userPlayed.length < Math.min(2, userMatches.length)) {
+      return { name: round.name, inProgress: true, eliminated: false };
+    }
+    // jogou a fase: avançou se a fase seguinte tem partida dele
+    const nextHasUser = lastIdx + 1 < comp.rounds.length && comp.rounds[lastIdx + 1].matchIds.some((id) => {
+      const m = store?.matches.find((x) => x.id === id);
+      return !!m && (m.homeId === userClubId || m.awayId === userClubId);
+    });
+    return { name: round.name, inProgress: nextHasUser, eliminated: !nextHasUser };
+  })();
+
   return (
     <div className="space-y-5">
       {/* cabeçalho com o formato */}
       <div className="card p-4 text-sm text-slate-400">
         <p className="font-semibold text-slate-200 mb-1">🇧🇷 Formato Série D 2026</p>
         <p>96 clubes → 16 grupos de 6 (ida+volta) → 64 classificados → mata-mata em ida e volta → 4 vencedores das quartas garantem acesso + 2 do playoff de acesso = <span className="text-accent font-bold">6 acessos à Série C</span>. Campeão definido na final em dois jogos.</p>
+        {userPhase && (
+          <div className={`mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-sm border ${userPhase.eliminated ? 'border-red-500/40 bg-red-500/10 text-red-300' : 'border-accent/40 bg-accent/10 text-accent'}`}>
+            {userPhase.eliminated ? '❌ Você foi eliminado' : userPhase.inProgress ? '⚽ Você está disputando' : '🏁 Sua fase'}
+            <span className="font-bold">{userPhase.name}</span>
+            {!userPhase.eliminated && userPhase.inProgress && <span className="text-xs opacity-80">— em andamento</span>}
+          </div>
+        )}
       </div>
 
       {/* fase de grupos */}

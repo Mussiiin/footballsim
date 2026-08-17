@@ -136,11 +136,36 @@ export function SeasonEndScreen() {
     if (leagueComp) {
       const place = summary.positions[myClubId] ?? null;
       const leagueChamp = summary.leagues.find((l) => l.competitionId === leagueComp.id);
-      competitionResults.push({
-        name: leagueComp.name,
-        result: place === 1 ? '🏆 Campeão' : place ? `${place}º lugar` : 'Participou',
-        champion: leagueChamp?.champion ?? '—',
-      });
+      // liga com mata-mata (ex.: Série D): a fase alcançada vem do chaveamento, não da tabela
+      if (leagueComp.knockoutAfterGroups) {
+        const koStore = world.cupMatches[leagueComp.id];
+        const round = cupRoundReached(koStore, leagueComp.rounds, myClubId);
+        const promoted = summary.promoted.some((p) => p.clubId === myClubId && p.from === leagueComp.id);
+        const champ = leagueComp.champions.find((c) => c.season === world.season);
+        const isChampion = champ?.champion === myClub?.name;
+        const isRunnerUp = champ?.runnerUp === myClub?.name;
+        competitionResults.push({
+          name: leagueComp.name,
+          result: isChampion
+            ? '🏆 Campeão'
+            : isRunnerUp
+              ? '🥈 Vice-campeão'
+              : promoted
+                ? `⬆️ Promovido (${round ?? 'mata-mata'})`
+                : round
+                  ? `Eliminado: ${round}`
+                  : place
+                    ? `${place}º na fase de grupos`
+                    : 'Participou',
+          champion: champ?.champion ?? '—',
+        });
+      } else {
+        competitionResults.push({
+          name: leagueComp.name,
+          result: place === 1 ? '🏆 Campeão' : place ? `${place}º lugar` : 'Participou',
+          champion: leagueChamp?.champion ?? '—',
+        });
+      }
     }
     for (const cup of Object.values(world.competitions)) {
       if (cup.type !== 'cup' && cup.type !== 'continental') continue;
