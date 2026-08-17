@@ -34,13 +34,30 @@ export interface UpdateNoteVersion {
 }
 
 /** Versão do build atual do jogo (a mais recente disponível). */
-export const GAME_VERSION = '1.8.3';
+export const GAME_VERSION = '1.8.4';
 
 /** Versão "instalada" padrão de quem nunca passou por uma atualização. */
 const DEFAULT_APPLIED_VERSION = '1.4.2';
 
 /** Histórico completo de versões (mais recente primeiro). */
 export const UPDATE_HISTORY: UpdateNoteVersion[] = [
+  {
+    version: '1.8.4',
+    title: 'Atualização 1.8.4',
+    date: '17/08/2026',
+    required: false,
+    newFeatures: [
+    ],
+    improvements: [
+      { title: 'Atualizações do jogo', description: '' },
+    ],
+    bugFixes: [
+    ],
+    football: [
+      { title: 'Mostrar fase atual da Copa do Brasil, continental e Série D n…', description: 'Painel: novo bloco "Fase atual das competições" com a fase de cada mata-mata (copa, continental, Série D), incluindo eliminados e campeões. Calendário: badge da fase do mata-mata ao lado de cada…' },
+      { title: 'Mostrar a fase atual e alcançada na Série D', description: 'Resumo de fim de temporada: ligas com mata-mata (Série D) agora mostram a fase real alcançada pelo clube ("Eliminado: Oitavas de final", "⬆️ Promovido (Quartas)") em vez de só a posição na tabela.…' },
+    ],
+  },
   {
     version: '1.8.3',
     title: 'Atualização 1.8.3',
