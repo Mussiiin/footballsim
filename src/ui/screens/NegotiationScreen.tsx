@@ -8,6 +8,7 @@ import {
   computeInterest, latestReport,
 } from '../../game/negotiation';
 import { daysBetween, formatDateBR } from '../../lib/date';
+import { openPlayerConversation } from '../../game/messages';
 
 const ROLE_OPTIONS: { id: SquadRole; label: string }[] = [
   { id: 'Titular absoluto', label: 'Titular absoluto' },
@@ -132,6 +133,10 @@ export function NegotiationScreen({ playerId }: { playerId: string }) {
             {neg.competingClubs.length > 0 && <span className="ml-auto text-gold">⚔️ {neg.competingClubs.length} concorrente(s)</span>}
           </div>
         )}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button onClick={() => openPlayerConversation(p.id)} className="btn-secondary !px-3 !py-1.5 text-xs">💬 Conversar com {p.firstName}</button>
+          {neg.kind === 'free' && <span className="text-[10px] text-slate-500">Jogador livre — conversar ajuda a avaliar interesse e exigências.</span>}
+        </div>
       </div>
 
       {/* Conversa */}

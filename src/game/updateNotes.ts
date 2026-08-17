@@ -34,13 +34,43 @@ export interface UpdateNoteVersion {
 }
 
 /** Versão do build atual do jogo (a mais recente disponível). */
-export const GAME_VERSION = '1.7.0';
+export const GAME_VERSION = '1.7.1';
 
 /** Versão "instalada" padrão de quem nunca passou por uma atualização. */
 const DEFAULT_APPLIED_VERSION = '1.4.2';
 
 /** Histórico completo de versões (mais recente primeiro). */
 export const UPDATE_HISTORY: UpdateNoteVersion[] = [
+  {
+    version: '1.7.1',
+    title: 'Conversa com jogador nas transferências e compras',
+    date: '16/08/2026',
+    required: false,
+    newFeatures: [
+      {
+        title: 'Conversar ao receber proposta de venda',
+        description: 'Na aba Propostas da Central de Transferências, cada proposta recebida tem o botão "💬 Conversar" — e o detalhe da proposta também. Abre o mesmo popup de conversa, com humor, personalidade e consequências reais nas suas decisões.',
+      },
+      {
+        title: 'Conversar durante a contratação',
+        description: 'Na negociação de compra (inclusive jogadores livres), o botão "💬 Conversar com o jogador" no cabeçalho abre o popup para avaliar interesse, exigências e expectativas antes de fechar o acordo.',
+      },
+    ],
+    improvements: [
+      {
+        title: 'Um único sistema de conversas',
+        description: 'Venda, compra, renovação, mensagens e perfil agora usam o mesmo modal reutilizável — toda conversa fica registrada no histórico do jogador.',
+      },
+    ],
+    bugFixes: [
+      {
+        title: 'Teste de chegada de contratação estável',
+        description: 'A reprovação aleatória nos exames médicos não derruba mais a validação automática do fluxo completo de chegada (viagem → exames → documentação → contrato → registro).',
+      },
+    ],
+    football: [
+    ],
+  },
   {
     version: '1.7.0',
     title: 'Copa do Brasil com premiação e Oitavas',

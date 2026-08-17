@@ -654,8 +654,15 @@ check('folha salarial atualizada após transferências', wageOk);
 console.log('🛬 Testando chegada de contratação...');
 {
   const w = career.world;
-  const target = Object.values(w.players).find((p) => p.status === 'active' && p.clubId && p.clubId !== career.clubId && p.contract && !p.injury);
-  if (target) {
+  // a reprovação nos exames médicos é aleatória (~6% base, mais com histórico de
+  // lesões) e cancela a transferência — não é falha do pipeline de chegada. Tenta
+  // até 3 alvos diferentes para verificar o fluxo completo de forma determinística.
+  let registered = false;
+  let attempts = 0;
+  for (let attempt = 0; attempt < 3 && !registered; attempt++) {
+    attempts++;
+    const target = Object.values(w.players).find((p) => p.status === 'active' && p.clubId && p.clubId !== career.clubId && p.contract && !p.injury && !w.pendingArrivals.some((a) => a.playerId === p.id));
+    if (!target) break;
     const savedDate = w.date;
     const toClub = career.clubId;
     const fromClub = target.clubId;
@@ -670,22 +677,28 @@ console.log('🛬 Testando chegada de contratação...');
       // jogador entra em 'awaiting_window' e só registra quando ela abrir — o
       // loop segue até atravessar a próxima janela.
       let guard = 0;
-      while (pending.transferStatus !== 'completed' && guard < 450) {
+      while (pending.transferStatus !== 'completed' && pending.transferStatus !== 'cancelled' && guard < 450) {
         w.date = addDays(w.date, 1);
         tickArrivals(w, career);
         guard++;
       }
-      check('jogador registrado após as etapas', pending.transferStatus === 'completed' && !target.arrivingUntil && squadOf(w, toClub).some((x) => x.id === target.id), `(${pending.transferStatus})`);
-      check('notícia de apresentação gerada', w.news.some((n) => n.playerId === target.id && n.title.includes('apresentado')));
+      if (pending.transferStatus === 'completed' && !target.arrivingUntil && squadOf(w, toClub).some((x) => x.id === target.id)) {
+        registered = true;
+        check('jogador registrado após as etapas', true, '');
+        check('notícia de apresentação gerada', w.news.some((n) => n.playerId === target.id && n.title.includes('apresentado')));
+      } else if (pending.transferStatus === 'cancelled') {
+        check('exames podem reprovar e cancelar', !!pending.cancelReason, `(${pending.cancelReason ?? 'sem motivo'})`);
+      } else {
+        check('jogador registrado após as etapas', false, `(${pending.transferStatus})`);
+      }
     } else {
       check('jogador registrado após as etapas', false, '(sem arrival p/ testar)');
     }
     w.date = savedDate;
     w.pendingArrivals = w.pendingArrivals.filter((a) => a.playerId !== target.id);
     target.arrivingUntil = null;
-  } else {
-    check('contratação entra em trânsito (pendingArrivals)', true, '(sem alvo p/ testar)');
   }
+  check('jogador registrado após as etapas (fluxo completo)', registered, `(após ${attempts} tentativa(s))`);
 }
 
 // conversas entre treinador e jogadores

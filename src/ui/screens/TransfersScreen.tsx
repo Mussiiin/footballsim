@@ -9,6 +9,7 @@ import { isInTransferWindow } from '../../game/sim';
 import { daysBetween, formatDateBR } from '../../lib/date';
 import { marketAnalysis, computeInterest, interestLevel, negotiationForPlayer, activeNegotiations, negotiationStatusLabel } from '../../game/negotiation';
 import { PlayerMarketModal } from './PlayerMarketModal';
+import { openPlayerConversation } from '../../game/messages';
 
 type SortKey = 'overall' | 'potential' | 'valueAsc' | 'valueDesc' | 'ageAsc' | 'ageDesc' | 'costbenefit' | 'wage';
 
@@ -567,6 +568,7 @@ function IncomingOffersPanel() {
                   <td className="table-td text-center">{badge(o)}</td>
                   <td className="table-td text-right">
                     <div className="flex gap-1.5 justify-end">
+                      <button onClick={() => openPlayerConversation(o.playerId)} title="Conversar com o jogador sobre a proposta" className="btn-ghost !px-2.5 !py-1.5 text-xs">💬 Conversar</button>
                       <button onClick={() => setProfile(p)} title="Ver overall, estatísticas e histórico" className="btn-ghost !px-2.5 !py-1.5 text-xs">👁 Perfil</button>
                       <button onClick={() => openOffer(o)} className="btn-secondary !px-3 !py-1.5 text-xs">Analisar</button>
                     </div>
@@ -600,7 +602,10 @@ function IncomingOffersPanel() {
                   <p className="text-sm text-slate-400">
                     <PositionBadge pos={p.position} /> Overall {overallOf(p)} · {p.age} anos · Valor {fmtMoney(p.value)}
                   </p>
-                  <button onClick={() => setProfile(p)} className="btn-ghost !px-2.5 !py-1 text-[11px] mt-1">👁 Ver perfil completo (stats, histórico, forma)</button>
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    <button onClick={() => openPlayerConversation(p.id)} className="btn-ghost !px-2.5 !py-1 text-[11px]">💬 Conversar com o jogador</button>
+                    <button onClick={() => setProfile(p)} className="btn-ghost !px-2.5 !py-1 text-[11px]">👁 Ver perfil completo (stats, histórico, forma)</button>
+                  </div>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-bold text-gold">{fmtMoney(o.fee)}</p>
