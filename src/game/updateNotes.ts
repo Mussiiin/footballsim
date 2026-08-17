@@ -34,13 +34,28 @@ export interface UpdateNoteVersion {
 }
 
 /** Versão do build atual do jogo (a mais recente disponível). */
-export const GAME_VERSION = '1.8.1';
+export const GAME_VERSION = '1.8.2';
 
 /** Versão "instalada" padrão de quem nunca passou por uma atualização. */
 const DEFAULT_APPLIED_VERSION = '1.4.2';
 
 /** Histórico completo de versões (mais recente primeiro). */
 export const UPDATE_HISTORY: UpdateNoteVersion[] = [
+  {
+    version: '1.8.2',
+    title: 'Publicação em um comando',
+    date: '17/08/2026',
+    required: false,
+    newFeatures: [
+      { title: 'npm run publish — publica no Vercel com um comando', description: 'Roda release (versão + patch notes automáticas do git log), typecheck, build, commit e push de uma vez. O deploy automático do Vercel cuida do resto.' },
+    ],
+    improvements: [
+    ],
+    bugFixes: [
+    ],
+    football: [
+    ],
+  },
   {
     version: '1.8.1',
     title: 'Campeonato Brasileiro Série D 2026 completo · correções: Rótulos Casa/',

@@ -26,7 +26,8 @@ import { execSync } from 'node:child_process';
 import readline from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
 
-const isTTY = Boolean(stdin.isTTY);
+const AUTO = process.argv.includes('--auto');
+const isTTY = Boolean(stdin.isTTY) && !AUTO;
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const NOTES_PATH = join(root, 'src', 'game', 'updateNotes.ts');
@@ -86,9 +87,9 @@ function git(args) {
   }
 }
 
-/** Último commit antes de HEAD que tocou updateNotes.ts (a "última release"). */
+/** Último commit que tocou updateNotes.ts (a "última release"). */
 function lastReleaseCommit() {
-  const hash = git(`log -1 --format=%H -- src/game/updateNotes.ts HEAD~1`);
+  const hash = git(`log -1 --format=%H -- src/game/updateNotes.ts`);
   return hash || '';
 }
 
@@ -175,7 +176,7 @@ const date = todayBR();
 console.log(`🚀 Release FootballSim — versão atual: ${current}`);
 console.log(`📅 Data de hoje: ${date}`);
 
-const args = process.argv.slice(2);
+const args = process.argv.slice(2).filter((a) => a !== '--auto');
 let version = args[0]?.trim();
 let title = args[1]?.trim();
 let notes = generateNotesFromGit();
