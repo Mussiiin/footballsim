@@ -187,15 +187,18 @@ export function PlayerMarketModal({ player, onClose, readOnly = false }: { playe
         <div className="grid md:grid-cols-2 gap-4">
           <div>
             <h3 className="font-display font-semibold text-slate-200 mb-2">Forma atual</h3>
-            <div className="flex items-center gap-2">
-              <div className="flex gap-1">
-                {player.lastRatings.slice(-5).map((r, i) => (
-                  <span key={i} className="rounded bg-surface-800 px-2 py-1 font-mono text-sm font-bold text-slate-200">{fmtRating(r)}</span>
-                ))}
-                {player.lastRatings.length === 0 && <span className="text-xs text-slate-500">Sem partidas na temporada</span>}
+            {player.lastRatings.length === 0 ? (
+              <span className="text-xs text-slate-500">📅 Temporada ainda não começou — nenhuma partida disputada</span>
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1">
+                  {player.lastRatings.slice(-5).map((r, i) => (
+                    <span key={i} className="rounded bg-surface-800 px-2 py-1 font-mono text-sm font-bold text-slate-200">{fmtRating(r)}</span>
+                  ))}
+                </div>
+                <span className={`text-sm font-semibold ${form.color}`}>{form.emoji} {form.label}</span>
               </div>
-              <span className={`text-sm font-semibold ${form.color}`}>{form.emoji} {form.label}</span>
-            </div>
+            )}
           </div>
           <div>
             <h3 className="font-display font-semibold text-slate-200 mb-2">Lesões</h3>

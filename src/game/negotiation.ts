@@ -2438,7 +2438,9 @@ export function roleForPlayer(world: World, clubId: string, p: Player): SquadRol
 }
 
 export function estimateFormLabel(p: Player): { label: string; emoji: string; color: string } {
-  const avg = p.lastRatings.length > 0 ? p.lastRatings.reduce((a, b) => a + b, 0) / p.lastRatings.length : 0;
+  // Temporada ainda não começou (ou sem partidas registradas) — não é forma ruim
+  if (p.lastRatings.length === 0) return { label: 'Temporada ainda não começou', emoji: '📅', color: 'text-slate-400' };
+  const avg = p.lastRatings.reduce((a, b) => a + b, 0) / p.lastRatings.length;
   if (avg >= 8.2) return { label: 'Excelente', emoji: '🔥', color: 'text-gold' };
   if (avg >= 7.6) return { label: 'Muito boa', emoji: '😄', color: 'text-accent' };
   if (avg >= 7) return { label: 'Boa', emoji: '🙂', color: 'text-sky-400' };
