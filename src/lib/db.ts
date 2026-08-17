@@ -77,6 +77,7 @@ function migrateCareer(c: Career): Career {
       : '🚫 Janela fechada — aguardando próxima abertura';
   }
   if (!w.playerTalks) w.playerTalks = {};
+  if (!w.offerCooldowns) w.offerCooldowns = {};
   if (!w.inbox) w.inbox = [];
   if (!w.talkHistory) w.talkHistory = [];
   // premiação por fase: regras centralizadas + controle de pagamento único + transações

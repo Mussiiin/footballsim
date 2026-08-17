@@ -101,6 +101,22 @@ export function talkTopicTitle(t: TalkTopic): string {
   return map[t] ?? 'Mensagem do jogador';
 }
 
+/** Aviso de mercado (👀 interesse / 📞 sondagem) — não abre proposta oficial. */
+export function pushMarketNotice(
+  world: World, career: Career, senderName: string, icon: string, title: string, preview: string,
+  priority: InboxPriority = 'normal',
+): InboxMessage {
+  return pushInbox(world, career, {
+    clubId: senderName,
+    senderName,
+    title: `${icon} ${title}`,
+    preview,
+    category: 'transfer',
+    priority,
+    link: 'transfers',
+  });
+}
+
 /** Mensagem de proposta recebida de outro clube. */
 export function pushOfferMessage(world: World, career: Career, clubName: string, playerId: string, fee: number): InboxMessage {
   const p = world.players[playerId];

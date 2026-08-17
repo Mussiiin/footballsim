@@ -17,7 +17,8 @@ import { addDays, daysBetween } from '../lib/date';
 import { sellingPrice, executeTransfer, isVitalPlayer, squadOf, freeAgents } from './transfers';
 import { isInTransferWindow } from './sim';
 import { addNews, notify } from './news';
-import { pushOfferMessage } from './messages';
+import { pushOfferMessage, pushMarketNotice } from './messages';
+import { divisionOf } from './economy';
 import { sackManager } from './career';
 import { COUNTRIES } from './names';
 import { POSITION_GROUPS, POSITION_LABELS, DIFFICULTY_CONFIG, Position } from '../lib/types';
@@ -1895,7 +1896,142 @@ function incomingOffersForPlayer(world: World, playerId: string): IncomingOffer[
   return world.incomingOffers.filter((o) => o.playerId === playerId && o.status === 'pending');
 }
 
-/** Gera propostas da IA por jogadores do nosso elenco (diário, durante a janela). */
+// ------------------------------------------------------------
+// Mercado realista por DIVISÃO — eventos probabilísticos, não rotina diária
+// ------------------------------------------------------------
+
+/** Probabilidade diária de o mercado "mexer" com o clube do usuário (por divisão). */
+function marketDayChance(userClub: Club): number {
+  const div = divisionOf(userClub);
+  // Série D: mercado calmo; Série A: mercado ativo. A maioria dos dias → nada.
+  if (div === 1) return 0.34;
+  if (div === 2) return 0.24;
+  if (div === 3) return 0.15;
+  return 0.09;
+}
+
+/** OVR médio esperado de um elenco por divisão (referência p/ julgar o jogador). */
+function divisionBase(div: number): number {
+  return div === 1 ? 68 : div === 2 ? 60 : div === 3 ? 54 : 50;
+}
+
+/**
+ * Interesse do mercado por um jogador (0-100), com base no contexto real:
+ * OVR relativo à divisão, potencial, idade, desempenho, contrato e desejo de sair.
+ * Jogador comum da Série D → score baixo → praticamente sem eventos.
+ */
+function transferInterestScore(world: World, p: Player, userClub: Club, vitalIds: Set<string>): number {
+  const div = divisionOf(userClub);
+  const ov = overallOf(p);
+  const base = divisionBase(div);
+  const s = p.seasonStats;
+  let score = 0;
+
+  // OVR relativo à divisão — um 70 na Série D é fenômeno; na Série A é comum
+  score += clamp((ov - base) * 4.0, 0, 44);
+  // potencial: jovem com teto alto chama atenção
+  score += clamp(((p.potential ?? ov) - 70) * 1.1, 0, 15);
+  // idade: pico de mercado 21-26
+  if (p.age <= 20) score += 8;
+  else if (p.age <= 26) score += 12;
+  else if (p.age <= 29) score += 6;
+  else score += 1;
+  // desempenho na temporada (gols/assistências/defesas + rating)
+  score += clamp((s?.goals ?? 0) * 2.2 + (s?.assists ?? 0) * 1.6 + (s?.cleanSheets ?? 0) * 1.2, 0, 14);
+  if ((s?.apps ?? 0) >= 10 && (s?.ratingSum ?? 0) / Math.max(1, s?.ratingCount ?? 1) >= 7.2) score += 5;
+  // contrato curto aumenta o interesse; contrato longo protege
+  if (p.contract) {
+    const monthsLeft = daysBetween(world.date, p.contract.until) / 30;
+    if (monthsLeft < 6) score += 14;
+    else if (monthsLeft < 12) score += 9;
+    else if (monthsLeft < 18) score += 4;
+    else score -= 4;
+  }
+  // desejo de sair
+  if (p.transferRequested || p.transferListed) score += 25;
+  // adaptação: recém-contratado fica praticamente fora do mercado
+  if (p.arrivingUntil) score -= 60;
+  // titular absoluto do clube: reduz um pouco as propostas (clube não quer vender) — a menos que peça pra sair
+  if (vitalIds.has(p.id) && !p.transferRequested) score -= 4;
+  // proposta já em aberto reduz novos eventos (evita enxurrada); estrelas mantêm disputa
+  const pending = world.incomingOffers.filter((o) => o.playerId === p.id && o.status === 'pending').length;
+  if (pending > 0) score -= pending * 10;
+
+  return clamp(Math.round(score), 0, 100);
+}
+
+/** Dias de cooldown até o próximo evento para o jogador. */
+function cooldownFor(score: number, isProposal: boolean): number {
+  if (isProposal) return 14 + Math.round((score / 100) * 7); // 14-21 dias
+  return 5 + Math.round((score / 100) * 4);                   // 5-9 dias para avisos
+}
+
+function inCooldown(world: World, playerId: string): boolean {
+  const until = world.offerCooldowns?.[playerId];
+  return !!until && world.date < until;
+}
+
+function setOfferCooldown(world: World, playerId: string, days: number): void {
+  world.offerCooldowns[playerId] = addDays(world.date, days);
+}
+
+/** Tipo do evento de mercado: interesse → sondagem → proposta oficial (mais rara). */
+function rollMarketEvent(rng: RNG, score: number): 'interest' | 'inquiry' | 'proposal' {
+  if (score >= 80) return rng.chance(0.7) ? 'proposal' : rng.chance(0.55) ? 'inquiry' : 'interest';
+  if (score >= 60) return rng.chance(0.55) ? 'proposal' : rng.chance(0.6) ? 'inquiry' : 'interest';
+  if (score >= 40) return rng.chance(0.28) ? 'proposal' : rng.chance(0.55) ? 'inquiry' : 'interest';
+  return rng.chance(0.12) ? 'proposal' : rng.chance(0.35) ? 'inquiry' : 'interest';
+}
+
+/**
+ * Escolhe um clube interessado compatível com o jogador: divisão adequada ao
+ * interesse, necessidade real de posição e orçamento compatível.
+ */
+function pickInterestedClub(
+  world: World, rng: RNG, target: Player, score: number, userClub: Club,
+  clubGroups: Map<string, Record<string, number>>, pendingByTarget: Set<string>,
+): Club | null {
+  const myDiv = divisionOf(userClub);
+  // faixa máxima de divisão do comprador conforme o interesse do jogador
+  const maxDiv = score >= 85 ? 1 : score >= 65 ? Math.max(1, myDiv - 1) : score >= 45 ? myDiv : Math.min(4, myDiv + 1);
+  const targetGroup = POSITION_GROUPS[target.position];
+
+  const candidates = Object.values(world.clubs).filter((c) => {
+    if (c.isUserControlled || c.id.startsWith('user')) return false;
+    const d = divisionOf(c);
+    if (d > maxDiv + 1) return false; // comprador forte demais para o jogador
+    const groups = clubGroups.get(c.id);
+    const total = groups ? Object.values(groups).reduce((s, n) => s + n, 0) : 0;
+    if (total < 16) return false;
+    // necessidade real de posição (grupo fraco) — não contrata posição cheia
+    if ((groups?.[targetGroup] ?? 0) >= 6) return false;
+    // já tem proposta pendente pelo jogador
+    if (pendingByTarget.has(c.id)) return false;
+    return true;
+  });
+  if (candidates.length === 0) return null;
+
+  // pondera por proximidade de divisão e poder financeiro (estrelas atraem clubes ricos)
+  const weighted = candidates.map((c) => {
+    const d = divisionOf(c);
+    let w = d === maxDiv ? 1 : d === maxDiv + 1 ? 0.55 : d < maxDiv ? 0.9 : 0.2;
+    if (score >= 65) w *= 1 + (c.balance ?? 0) / 60_000_000;
+    return { c, w: Math.max(0.05, w) };
+  });
+  const total = weighted.reduce((s, x) => s + x.w, 0);
+  let r = rng.float(0, total);
+  for (const x of weighted) {
+    r -= x.w;
+    if (r <= 0) return x.c;
+  }
+  return weighted[0].c;
+}
+
+/**
+ * Gera eventos de mercado por jogadores do nosso elenco (propostas, sondagens e
+ * interesses). Os eventos são probabilísticos — a maioria dos dias passa sem nada,
+ * e a frequência respeita a divisão do clube e o interesse real por cada jogador.
+ */
 export function generateIncomingOffers(world: World, career: Career | null, rng: RNG, count: number): void {
   if (!career) return;
   const userClub = world.clubs[career.clubId];
@@ -1903,45 +2039,86 @@ export function generateIncomingOffers(world: World, career: Career | null, rng:
   const mySquad = squadOf(world, career.clubId).filter((p) => !p.isLoan && p.status === 'active');
   if (mySquad.length === 0) return;
 
-  const clubs = rng.shuffle(Object.values(world.clubs).filter((c) => !c.isUserControlled && !c.id.startsWith('user')));
-  let done = 0;
+  // 1) a maioria dos dias passa sem nenhum evento — chance diária por divisão
+  if (!rng.chance(marketDayChance(userClub))) return;
 
-  for (const club of clubs) {
-    if (done >= count) break;
-    const tier = clubTierKey(club);
-    const cSquad = squadOf(world, club.id);
-    if (cSquad.length < 16) continue;
-    const groups = cSquad.reduce((acc, p) => { acc[POSITION_GROUPS[p.position]] = (acc[POSITION_GROUPS[p.position]] ?? 0) + 1; return acc; }, {} as Record<string, number>);
-    const weakGroup = (Object.keys(groups) as ('GK' | 'DEF' | 'MID' | 'ATT')[]).find((g) => (groups[g] ?? 0) < 5);
-    if (!weakGroup) continue;
+  // 2) número de eventos do dia (1; às vezes 2-3)
+  let events = 1;
+  if (rng.chance(0.22)) events++;
+  if (rng.chance(0.05)) events++;
+  events = Math.min(events, Math.max(1, count));
 
-    const candidates = mySquad.filter((p) =>
-      POSITION_GROUPS[p.position] === weakGroup
-      && !incomingOffersForPlayer(world, p.id).some((o) => o.clubId === club.id)
-      && incomingOffersForPlayer(world, p.id).length < 2
-      && !world.negotiations[p.id],
-    );
-    if (candidates.length === 0) continue;
+  // 3) titulares do clube calculados uma única vez (barato) — evita re-varredura por jogador
+  const vitalIds = new Set(
+    [...mySquad].sort((a, b) => overallOf(b) - overallOf(a)).slice(0, 11).map((p) => p.id),
+  );
 
-    // preferência: quem quer sair / está listado / é estrela
-    let pool = candidates.filter((p) => p.transferRequested || p.transferListed);
-    if (pool.length === 0) pool = candidates.filter((p) => overallOf(p) >= 80);
-    if (pool.length === 0) pool = candidates;
-    const target = rng.pick(pool);
+  // 4) contagem de jogadores por grupo de posição de TODOS os clubes (uma passada única)
+  const clubGroups = new Map<string, Record<string, number>>();
+  for (const p of Object.values(world.players)) {
+    if (!p.clubId || p.status !== 'active' || p.arrivingUntil) continue;
+    let g = clubGroups.get(p.clubId);
+    if (!g) { g = {}; clubGroups.set(p.clubId, g); }
+    const grp = POSITION_GROUPS[p.position];
+    g[grp] = (g[grp] ?? 0) + 1;
+  }
 
+  // 5) jogadores com interesse real, fora do cooldown, ordenados por interesse
+  const candidates = mySquad
+    .map((p) => ({ p, score: transferInterestScore(world, p, userClub, vitalIds) }))
+    .filter((x) => x.score >= 20 && !inCooldown(world, x.p.id))
+    .sort((a, b) => b.score - a.score);
+  if (candidates.length === 0) return;
+
+  let made = 0;
+  let guard = 0;
+  while (made < events && candidates.length > 0 && guard < events * 10) {
+    guard++;
+    // escolha ponderada pelo interesse (jogadores procurados saem primeiro)
+    const totalScore = candidates.reduce((s, x) => s + x.score, 0);
+    let rr = rng.float(0, totalScore);
+    let idx = 0;
+    for (let i = 0; i < candidates.length; i++) {
+      rr -= candidates[i].score;
+      if (rr <= 0) { idx = i; break; }
+    }
+    const chosen = candidates[idx];
+    candidates.splice(idx, 1);
+
+    const target = chosen.p;
+    const pendingByTarget = new Set(world.incomingOffers.filter((o) => o.playerId === target.id && o.status === 'pending').map((o) => o.clubId));
+    const club = pickInterestedClub(world, rng, target, chosen.score, userClub, clubGroups, pendingByTarget);
+    if (!club) continue;
+
+    const event = rollMarketEvent(rng, chosen.score);
+
+    if (event !== 'proposal') {
+      // 👀 interesse / 📞 sondagem — NÃO abre proposta oficial
+      const isInquiry = event === 'inquiry';
+      const title = isInquiry
+        ? `${club.shortName} consultou as condições por ${target.firstName} ${target.lastName}`
+        : `Clubes monitoram ${target.firstName} ${target.lastName}`;
+      const preview = isInquiry
+        ? `O ${club.name} entrou em contato para saber os valores. Nenhuma proposta oficial ainda.`
+        : `O ${club.name} está de olho no desempenho do jogador. Nenhuma proposta oficial ainda.`;
+      pushMarketNotice(world, career, club.shortName, isInquiry ? '📞' : '👀', title, preview, isInquiry ? 'normal' : 'low');
+      setOfferCooldown(world, target.id, cooldownFor(chosen.score, false));
+      made++;
+      continue;
+    }
+
+    // 💰 proposta oficial
     const price = sellingPrice(world, target, userClub);
-    if (price < 800_000) continue;
-    const feeMult = tier === 'elite' ? rng.float(1.0, 1.15) : tier === 'mid' ? rng.float(0.85, 1.0) : rng.float(0.75, 0.9);
-    const fee = Math.round(price * feeMult);
-    if (club.balance < fee * (tier === 'small' ? 1.6 : 1.25)) continue;
-    const ov = overallOf(target);
-    const baseChance = ov >= 85 ? 0.8 : ov >= 78 ? 0.5 : 0.3;
-    if (!rng.chance(target.transferRequested ? baseChance + 0.3 : baseChance)) continue;
+    if (price < 300_000) continue; // jogador sem valor de mercado
+    const [lo, hi] = chosen.score >= 85 ? [1.1, 1.45] : chosen.score >= 65 ? [0.95, 1.25] : chosen.score >= 45 ? [0.8, 1.1] : [0.7, 0.95];
+    const fee = Math.round((price * rng.float(lo, hi)) / 1e4) * 1e4;
+    const needMult = divisionOf(club) < divisionOf(userClub) ? 1.8 : 1.35;
+    if (club.balance < fee * needMult) continue; // comprador sem condições
 
-    const sellOn = tier === 'small' && rng.chance(0.25) ? rng.pick([10, 15]) : 0;
+    const sellOn = divisionOf(club) > divisionOf(userClub) && rng.chance(0.25) ? rng.pick([10, 15]) : 0;
     const bonus = rng.chance(0.35) ? Math.round(fee * rng.float(0.05, 0.12)) : 0;
     const installments = rng.chance(0.3) ? rng.int(2, 4) : 1;
-    const hiddenMax = Math.round(price * (tier === 'elite' ? rng.float(1.2, 1.3) : tier === 'mid' ? rng.float(1.08, 1.18) : rng.float(1.0, 1.08)));
+    const hiddenMax = Math.round(price * (chosen.score >= 85 ? rng.float(1.2, 1.3) : chosen.score >= 60 ? rng.float(1.08, 1.18) : rng.float(1.0, 1.08)));
 
     const offer: IncomingOffer = {
       id: `io${incomingOfferCounter++}`,
@@ -1981,14 +2158,15 @@ export function generateIncomingOffers(world: World, career: Career | null, rng:
       addNews(world, {
         date: world.date,
         title: `🔥 Interesse: ${club.shortName} faz proposta de €${(fee / 1e6).toFixed(1)}M por ${target.firstName} ${target.lastName}`,
-        subtitle: `O ${club.tier.toLowerCase()} ${club.name} tenta tirar o ${POSITION_LABELS[target.position].toLowerCase()} de ${ov} de overall do ${userClub.shortName}.`,
+        subtitle: `O ${club.tier.toLowerCase()} ${club.name} tenta tirar o ${POSITION_LABELS[target.position].toLowerCase()} de ${overallOf(target)} de overall do ${userClub.shortName}.`,
         category: 'Transferências',
         importance: fee >= 30_000_000 ? 80 : 70,
         clubId: club.id,
       });
     }
     notify(career, `📩 ${club.shortName} fez uma proposta de €${(fee / 1e6).toFixed(1)}M por ${target.firstName} ${target.lastName}.`, 'info', '📩', 'transfers');
-    done++;
+    setOfferCooldown(world, target.id, cooldownFor(chosen.score, true));
+    made++;
   }
 }
 

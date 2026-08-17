@@ -1020,6 +1020,8 @@ export interface World {
   inquiries: Inquiry[]; // sondagens enviadas a outros clubes
   pendingArrivals: PendingArrival[]; // contratações em trânsito (documentação/viagem/exames)
   playerTalks: Record<string, PlayerTalk>; // conversas entre treinador e jogadores
+  /** Cooldown de mercado por jogador: playerId → data até a qual não recebe novos eventos (propostas/sondagens/interesses). */
+  offerCooldowns: Record<string, string>;
   marketHighlights: MarketHighlight[];
   windowRecordFee: number; // maior negócio da janela atual (para notificações de recorde)
   agents: Record<string, PlayerAgent>;

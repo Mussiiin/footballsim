@@ -793,10 +793,15 @@ export function cupFixtures(comp: Competition, world: World, rng: RNG): { matche
             away: { kind: 'winner', matchId: prev[i + 8] },
           };
         } else {
-          refs[m.id] = {
-            home: { kind: 'club', id: byes[byeIdx] },
-            away: { kind: 'club', id: byes[byeIdx + 1] },
-          };
+          // cabeças de chave: os clubes SÃO conhecidos — resolve já na geração
+          // (senão a partida fica __TBD__ e some da UI até a fase anterior acabar)
+          const h = byes[byeIdx];
+          const a = byes[byeIdx + 1];
+          refs[m.id] = { home: { kind: 'club', id: h }, away: { kind: 'club', id: a } };
+          m.homeId = h;
+          m.awayId = a;
+          m.homeName = world.clubs[h].name;
+          m.awayName = world.clubs[a].name;
           byeIdx += 2;
         }
         matches.push(m);
@@ -829,11 +834,18 @@ export function cupFixtures(comp: Competition, world: World, rng: RNG): { matche
           away: { kind: 'winner', matchId: rounds[0].matchIds[i * 2 + 1] },
         };
       } else {
+        // cabeças de chave: resolve já na geração (mesmo motivo do bigCup)
         const bi = (i - winnerPairs) * 2;
+        const h = byes[bi];
+        const a = byes[bi + 1];
         refs[m.id] = {
-          home: { kind: 'club', id: byes[bi] },
-          away: { kind: 'club', id: byes[bi + 1] },
+          home: { kind: 'club', id: h },
+          away: { kind: 'club', id: a },
         };
+        m.homeId = h;
+        m.awayId = a;
+        m.homeName = world.clubs[h].name;
+        m.awayName = world.clubs[a].name;
       }
       matches.push(m);
       rounds[1].matchIds.push(m.id);
@@ -1184,6 +1196,7 @@ export function generateWorld(seed: string, season = '2026/27'): World {
     inquiries: [],
     pendingArrivals: [],
     playerTalks: {},
+    offerCooldowns: {},
     inbox: [],
     talkHistory: [],
     competitionPrizeRules: {},

@@ -103,6 +103,10 @@ function Router() {
     const tab = route.slice(10);
     return <Shell active="transfers"><TransfersScreen key={tab} initialTab={tab} /></Shell>;
   }
+  if (route.startsWith('competitions:')) {
+    const id = route.slice(13);
+    return <Shell active="competitions"><CompetitionsScreen key={`comp-${id}`} initialId={id} /></Shell>;
+  }
 
   const map: Record<string, React.ReactNode> = {
     dashboard: <DashboardScreen />,

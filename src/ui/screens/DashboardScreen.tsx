@@ -29,14 +29,29 @@ export function DashboardScreen() {
   const pos = leagueComp && club ? positionOf(leagueComp, club.id) : 0;
   const standings = leagueComp ? sortedStandings(leagueComp).slice(0, 8) : [];
 
-  // competições de mata-mata do usuário (copa nacional, continental, Série D) — fase atual de cada uma
+  // fase atual de cada competição do usuário — liga (sempre) + copas/continental em que participa
   const knockoutComps = useMemo(() => {
-    if (!clubId) return [];
+    if (!clubId || !leagueComp) return [];
     const out: { comp: NonNullable<typeof leagueComp>; phase: string }[] = [];
+    // 1) liga do usuário (ex.: Série D) — aparece sempre, mesmo em ligas sem mata-mata
+    let leaguePhase: string;
+    if (leagueComp.knockoutAfterGroups && (leagueComp.rounds?.length ?? 0) > 0) {
+      leaguePhase = phaseForClub(world, leagueComp, clubId) ?? 'Fase de grupos';
+    } else {
+      // liga simples (saves antigos): mostra a rodada atual
+      const ms = (world.leagueMatches[leagueComp.id] ?? []) as { round?: number; played: boolean }[];
+      const maxRound = ms.reduce((mx, m) => Math.max(mx, m.round ?? 1), 1);
+      let cur = maxRound;
+      for (let r = 1; r <= maxRound; r++) {
+        const inRound = ms.filter((m) => (m.round ?? 1) === r);
+        if (inRound.length > 0 && inRound.some((m) => !m.played)) { cur = r; break; }
+      }
+      leaguePhase = `Rodada ${cur}`;
+    }
+    out.push({ comp: leagueComp, phase: leaguePhase });
+    // 2) copas e continental em que o usuário participa
     for (const c of Object.values(world.competitions)) {
-      if (c.type !== 'cup' && c.type !== 'continental' && !c.knockoutAfterGroups) continue;
-      // liga: só a do usuário (Série D); copas/continental: só as que o usuário participa
-      if (c.knockoutAfterGroups && c.id !== leagueComp?.id) continue;
+      if (c.type !== 'cup' && c.type !== 'continental') continue;
       const phase = phaseForClub(world, c, clubId);
       if (phase) out.push({ comp: c, phase });
     }
@@ -158,7 +173,7 @@ export function DashboardScreen() {
               return (
                 <button
                   key={comp.id}
-                  onClick={() => navigate('competitions')}
+                  onClick={() => navigate(`competitions:${comp.id}`)}
                   className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition ${eliminated ? 'border-red-500/30 bg-red-500/5 hover:bg-red-500/10' : 'border-accent/30 bg-accent/5 hover:bg-accent/10'}`}
                 >
                   <span className="text-slate-200">{comp.name}</span>
