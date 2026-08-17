@@ -62,8 +62,8 @@ export const UPDATE_HISTORY: UpdateNoteVersion[] = [
     date: '17/08/2026',
     required: false,
     newFeatures: [
-      { title: 'Campeonato Brasileiro Série D 2026 completo', description: '- 96 clubes reais da Série D em 16 grupos de 6, 10 rodadas (ida+volta) - Mata-mata de 64 em ida/volta com agregado + pênaltis, 4 vencedores das quartas + 2 dos playoffs de acesso p' },
-      { title: 'Sistema real de contratos individuais', description: '- worldgen: contratos com distribuição ponderada (10/20/25/25/15/5), terminando em 30/06, sem expirados na criação e com signedAt válido - UI: perfil mostra status do contrato (🟢 ' },
+      { title: 'Campeonato Brasileiro Série D 2026 completo', description: '96 clubes reais da Série D em 16 grupos de 6, com 10 rodadas em ida e volta. Mata-mata de 64 em ida/volta com agregado + pênaltis: 4 vencedores das quartas garantem vaga direta na Série C e os 4 derrotados disputam os playoffs de acesso, somando 6 promovidos para 2027.' },
+      { title: 'Sistema real de contratos individuais', description: 'Cada jogador tem contrato próprio com distribuição realista (10/20/25/25/15/5 por ano de vínculo), todos terminando em 30/06 e sem expirados na criação. O perfil mostra o status (🟢 ativo, 🟡 aproximando, 🔴 elegível para pré-contrato) e o mercado só destaca os realmente elegíveis.' },
     ],
     improvements: [
     ],

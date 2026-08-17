@@ -133,17 +133,24 @@ function generateNotesFromGit() {
     if (!title) continue;
     title = title.charAt(0).toUpperCase() + title.slice(1);
 
-    // descrição: primeiro parágrafo do corpo (sem o rodapé do Codebuff)
+    // descrição: bullets do corpo viram texto legível (nunca corta no meio de palavra)
     let description = '';
     if (body) {
-      const lines = body
+      const raw = body
         .split('\n')
         .map((l) => l.trim())
         .filter((l) => l && !/^🤖/.test(l) && !/^Co-Authored/.test(l));
-      if (lines.length > 0 && !/^-/.test(lines[0])) {
-        description = lines[0];
-      } else if (lines.length > 0) {
-        description = lines.join(' ').slice(0, 180);
+      const bullets = raw.filter((l) => /^-/.test(l)).map((l) => l.replace(/^-\s*/, ''));
+      if (bullets.length > 0) {
+        description = bullets.map((b) => b.replace(/\.+$/, '')).join('. ');
+      } else if (raw.length > 0) {
+        description = raw[0];
+      }
+      // corta em limite de palavra (nunca no meio), com reticências
+      if (description.length > 200) {
+        const cut = description.slice(0, 197);
+        const lastSpace = cut.lastIndexOf(' ');
+        description = (lastSpace > 60 ? cut.slice(0, lastSpace) : cut) + '…';
       }
     }
 
