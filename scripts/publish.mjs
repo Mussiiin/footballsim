@@ -47,15 +47,49 @@ const pending = porcelain.split('\n').filter(Boolean);
 // ------------------------------------------------------------
 // 2. Commit das mudanças pendentes do jogo (se houver)
 // ------------------------------------------------------------
+// Mapa arquivo → recurso, para gerar uma mensagem de commit descritiva que
+// vira patch notes reais (o release lê subject + body do git log).
+const FILE_FEATURES = {
+  'src/game/negotiation.ts': 'Mercado de transferências',
+  'src/game/transfers.ts': 'Mercado de transferências',
+  'src/game/preContracts.ts': 'Pré-contratos',
+  'src/game/messages.ts': 'Mensagens e notificações',
+  'src/game/playerTalks.ts': 'Conversas com jogadores',
+  'src/game/season.ts': 'Fim de temporada e promoções',
+  'src/game/economy.ts': 'Finanças e objetivos da diretoria',
+  'src/game/finances.ts': 'Finanças do clube',
+  'src/game/worldgen.ts': 'Geração do mundo e elencos',
+  'src/game/competitions.ts': 'Competições e fases',
+  'src/game/sim.ts': 'Simulação de partidas',
+  'src/game/career.ts': 'Carreira e diretoria',
+  'src/game/contracts.ts': 'Contratos de jogadores',
+  'src/game/overall.ts': 'Atributos e valores de jogadores',
+  'src/ui/screens/DashboardScreen.tsx': 'Painel principal',
+  'src/ui/screens/CompetitionsScreen.tsx': 'Tela de Competições',
+  'src/ui/screens/SeasonEndScreen.tsx': 'Resumo de fim de temporada',
+  'src/ui/screens/CalendarScreen.tsx': 'Calendário',
+  'src/ui/screens/TransfersScreen.tsx': 'Mercado de transferências',
+  'src/ui/screens/FinancesScreen.tsx': 'Finanças',
+  'src/ui/screens/MessagesScreen.tsx': 'Central de mensagens',
+  'src/ui/screens/PlayerScreen.tsx': 'Ficha do jogador',
+  'src/ui/PlayerConversationModal.tsx': 'Conversas com jogadores',
+  'src/ui/UpdateModal.tsx': 'Popup de atualização',
+  'src/lib/types.ts': 'Dados e estrutura do jogo',
+  'src/lib/db.ts': 'Saves e migração',
+  'src/App.tsx': 'Navegação do jogo',
+  'src/ui/Shell.tsx': 'Navegação do jogo',
+};
 const releaseFiles = ['src/game/updateNotes.ts', 'public/manifest.webmanifest'];
 const featurePending = pending.filter((p) => !releaseFiles.some((f) => p.includes(f)));
 if (featurePending.length > 0) {
-  const files = featurePending.map((p) => p.slice(3).split(' ')[0]).slice(0, 5).join(', ');
-  const msg = `Atualizações do jogo: ${files}${featurePending.length > 5 ? ' e mais' : ''}`;
+  const paths = featurePending.map((p) => p.slice(3).split(' ')[0]);
+  const features = [...new Set(paths.map((p) => FILE_FEATURES[p] ?? 'Mecânicas do jogo').filter(Boolean))];
+  const subject = `Atualizações: ${features.join(', ')}`;
+  const body = paths.map((p) => `- ${p}: ${FILE_FEATURES[p] ?? 'mecânica'}`).join('\n');
   console.log(`📝 Commitando mudanças pendentes (${featurePending.length} arquivo(s))…`);
   sh(`git add -A`);
-  sh(`git commit -m "${msg.replace(/"/g, '\\"')}"`);
-  console.log(`   ✔ ${msg}`);
+  sh(`git commit -m "${subject.replace(/"/g, '\\"')}" -m "${body.replace(/"/g, '\\"')}"`);
+  console.log(`   ✔ ${subject}`);
 } else {
   console.log('ℹ️  Nenhuma mudança de jogo pendente — só a release será publicada.');
 }

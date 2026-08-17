@@ -34,7 +34,7 @@ export interface UpdateNoteVersion {
 }
 
 /** Versão do build atual do jogo (a mais recente disponível). */
-export const GAME_VERSION = '1.8.5';
+export const GAME_VERSION = '1.8.6';
 
 /** Versão "instalada" padrão de quem nunca passou por uma atualização. */
 const DEFAULT_APPLIED_VERSION = '1.4.2';
@@ -42,16 +42,46 @@ const DEFAULT_APPLIED_VERSION = '1.4.2';
 /** Histórico completo de versões (mais recente primeiro). */
 export const UPDATE_HISTORY: UpdateNoteVersion[] = [
   {
+    version: '1.8.6',
+    title: 'Atualização 1.8.6',
+    date: '17/08/2026',
+    required: false,
+    newFeatures: [
+      { title: 'Mercado de transferências realista', description: 'Propostas agora são eventos raros e por mérito: a maioria dos dias passa sem nada. O interesse é calculado pelo jogador (OVR relativo à divisão, potencial, idade, desempenho, contrato e pedido de saída).' },
+      { title: '👀 Interesse → 📞 Sondagem → 💰 Proposta oficial', description: 'Nem todo interesse vira proposta. Clubes primeiro monitoram, depois sondam e só então fazem proposta oficial — com cooldown de dias entre eventos para cada jogador (fim da enxurrada de propostas).' },
+      { title: 'Compradores compatíveis', description: 'O clube interessado agora tem divisão compatível com o jogador, necessidade real de posição e orçamento para pagar. Destaque da Série D atrai clubes de Série C/B; excepcionais, da Série A.' },
+    ],
+    improvements: [
+      { title: 'Card "Fase atual das competições" completo no Painel', description: 'Mostra a liga do usuário (ex.: Série D, com a rodada/fase atual) além da Copa do Brasil e das competições continentais.' },
+      { title: 'Clique abre a competição certa', description: 'Ao clicar em uma competição no Painel, a tela de Competições abre exatamente aquela competição (e lembra a seleção entre visitas).' },
+      { title: 'Patch notes detalhadas automaticamente', description: 'O sistema de publicação agora gera notas descritivas do que foi implementado em cada atualização, em vez de um resumo genérico.' },
+      { title: 'Performance do mercado', description: 'Geração de propostas otimizada em mais de 300× — o avanço de dias/semanas ficou muito mais rápido.' },
+    ],
+    bugFixes: [
+      { title: 'Propostas em excesso na Série D', description: 'Corrigido o sistema que gerava várias propostas em poucos dias para jogadores comuns — agora a frequência respeita a divisão do clube e o valor real do jogador.' },
+      { title: 'Competição errada ao clicar no card', description: 'Antes, clicar na Copa do Brasil abria a Série D. Agora cada botão do Painel abre a competição correspondente.' },
+    ],
+    football: [
+    ],
+  },
+  {
     version: '1.8.5',
     title: 'Atualização 1.8.5',
     date: '17/08/2026',
     required: false,
     newFeatures: [
+      { title: 'Mercado de transferências realista', description: 'Propostas agora são eventos raros e por mérito: a maioria dos dias passa sem nada. O interesse é calculado pelo jogador (OVR relativo à divisão, potencial, idade, desempenho, contrato e pedido de saída).' },
+      { title: '👀 Interesse → 📞 Sondagem → 💰 Proposta', description: 'Nem todo interesse vira proposta. Clubes primeiro monitoram, depois sondam e só então fazem proposta oficial — com cooldown de dias entre eventos para cada jogador (fim da enxurrada de propostas).' },
+      { title: 'Compradores compatíveis', description: 'O clube interessado agora tem divisão compatível com o jogador, necessidade real de posição e orçamento para pagar. Destaque da Série D atrai clubes de Série C/B; excepcionais, da Série A.' },
     ],
     improvements: [
-      { title: 'Atualizações do jogo', description: '' },
+      { title: 'Card "Fase atual das competições" completo', description: 'O Painel agora mostra a liga do usuário (ex.: Série D, com a rodada/fase atual) além da Copa do Brasil e das competições continentais.' },
+      { title: 'Clique abre a competição certa', description: 'Ao clicar em uma competição no Painel, a tela de Competições abre exatamente aquela competição (e lembra a seleção entre visitas).' },
+      { title: 'Performance do mercado', description: 'Geração de propostas otimizada em mais de 300× — o avanço de dias/semanas ficou muito mais rápido.' },
     ],
     bugFixes: [
+      { title: 'Propostas em excesso na Série D', description: 'Corrigido o sistema que gerava várias propostas em poucos dias para jogadores comuns — agora a frequência respeita a divisão do clube e o valor real do jogador.' },
+      { title: 'Competição errada ao clicar no card', description: 'Antes, clicar na Copa do Brasil abria a Série D. Agora cada botão abre a competição correspondente.' },
     ],
     football: [
     ],

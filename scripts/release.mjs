@@ -123,6 +123,7 @@ function generateNotesFromGit() {
     const lower = s.toLowerCase();
     // remove prefixos de ação ("Implementar", "Adiciona", "Corrigir"...) para o título ficar legível
     let clean = s
+      .replace(/^atualiza(ções|coes|ção|cao)s?:\s*/i, '')
       .replace(/^[A-Za-zÀ-ú]+:\s*/, '')
       .replace(/^\((fix|feat|refactor|chore)\)\s*/, '')
       .replace(/^(implementar|implementa|adiciona|adicionar|adicionado|corrigir|corrige|corrigido|correção de|correcao de|criar|cria|criado|sistema de|novo sistema de|melhora|melhorar|melhorado|otimiza|otimizar|ajusta|ajustar|refatora|refatorar|reforça|reforca|blinda|trata|permite|passa a|agora|inclui|incluir|adicionamos|implementamos|melhoramos|corrigimos)\s+/i, '');
