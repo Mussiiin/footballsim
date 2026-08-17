@@ -488,3 +488,71 @@ export function currentCupRoundName(comp: Competition): string {
   const idx = Math.min(comp.currentRoundIndex, comp.rounds.length - 1);
   return comp.rounds[idx]?.name ?? '—';
 }
+
+/** Store de partidas de uma competição de mata-mata (copa, continental ou liga com knockout). */
+function knockoutStoreOf(world: World, comp: Competition): { matches: Match[] } | undefined {
+  if (comp.type === 'continental') return world.continentalMatches[comp.id];
+  if (comp.type === 'cup') return world.cupMatches[comp.id];
+  // liga com mata-mata (ex.: Série D) — o chaveamento vive no store de copa da própria liga
+  if (comp.knockoutAfterGroups) return world.cupMatches[comp.id];
+  return undefined;
+}
+
+/**
+ * Fase em que um clube está (ou chegou) numa competição de mata-mata.
+ * - "🏆 Campeão" se venceu a competição
+ * - nome da fase atual se ainda está disputando
+ * - "Eliminado: X" se foi eliminado no mata-mata
+ * - null se o clube não participa do mata-mata (ex.: eliminado na fase de grupos)
+ */
+export function phaseForClub(world: World, comp: Competition, clubId: string): string | null {
+  const store = knockoutStoreOf(world, comp);
+  if (!store || comp.rounds.length === 0) return null;
+  const inKnockout = store.matches.some(
+    (m) => (m.homeId === clubId || m.awayId === clubId) && m.homeId !== '__TBD__' && m.awayId !== '__TBD__',
+  );
+  // clube participa da competição mas ainda não jogou nada no mata-mata
+  if (!inKnockout && comp.clubIds?.includes(clubId)) {
+    // liga com grupos (Série D): ainda na fase de grupos
+    if (comp.knockoutAfterGroups) return 'Fase de grupos';
+    // copa/continental: primeira fase ainda não concluída
+    const current = comp.rounds.find((r) => !r.complete);
+    return current?.name ?? comp.rounds[0]?.name ?? null;
+  }
+  if (!inKnockout) return null;
+  // campeão da temporada?
+  const clubName = world.clubs[clubId]?.name;
+  const champ = comp.champions.find((c) => c.season === world.season && c.champion === clubName);
+  if (champ) return '🏆 Campeão';
+  let lastIdx = -1;
+  comp.rounds.forEach((r, ri) => {
+    const hasUser = r.matchIds.some((id) =>
+      store.matches.some((m) => m.id === id && (m.homeId === clubId || m.awayId === clubId)),
+    );
+    if (hasUser) lastIdx = ri;
+  });
+  if (lastIdx < 0) return null;
+  const round = comp.rounds[lastIdx];
+  const userMatches = store.matches.filter(
+    (m) => round.matchIds.includes(m.id) && (m.homeId === clubId || m.awayId === clubId),
+  );
+  const playedCount = userMatches.filter((m) => m.played).length;
+  const expected = Math.min(round.legs === 'two' ? 2 : 1, userMatches.length);
+  if (playedCount < expected) return round.name;
+  const nextHas = lastIdx + 1 < comp.rounds.length && comp.rounds[lastIdx + 1].matchIds.some((id) =>
+    store.matches.some((m) => m.id === id && (m.homeId === clubId || m.awayId === clubId)),
+  );
+  return nextHas ? comp.rounds[lastIdx + 1].name : `Eliminado: ${round.name}`;
+}
+
+/** Fase (nome) a que uma partida pertence, se for de mata-mata. */
+export function phaseOfMatch(world: World, m: Match): string | null {
+  const comp = world.competitions[m.competitionId];
+  if (!comp || comp.rounds.length === 0) return null;
+  const store = knockoutStoreOf(world, comp);
+  if (!store) return null;
+  for (const r of comp.rounds) {
+    if (r.matchIds.includes(m.id)) return r.name;
+  }
+  return null;
+}

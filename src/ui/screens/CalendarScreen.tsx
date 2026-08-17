@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useGame } from '../../state/store';
 import { ClubCrest, ResultPill } from '../components';
-import { allMatchesForClub } from '../../game/competitions';
+import { allMatchesForClub, phaseOfMatch } from '../../game/competitions';
 import { formatDateBR, WEEKDAYS_SHORT, addDays } from '../../lib/date';
 import { fmtMoney } from '../../lib/format';
 import { Match } from '../../lib/types';
@@ -101,9 +101,11 @@ export function CalendarScreen() {
                     const away = world.clubs[m.awayId];
                     const isHome = m.homeId === clubId;
                     const comp = world.competitions[m.competitionId];
+                    const phase = phaseOfMatch(world, m);
                     return (
                       <button key={m.id} onClick={() => { if (m.played) navigate('competitions'); }} className="flex items-center gap-2 w-full text-left py-1">
                         <span className={`text-[10px] font-semibold w-14 truncate ${m.played ? 'text-slate-600' : 'text-accent'}`}>{m.played ? 'Jogada' : comp?.shortName ?? ''}</span>
+                        {phase && <span className="badge bg-accent/10 text-accent border border-accent/30 text-[9px] px-1.5 py-0 shrink-0">{phase}</span>}
                         <span className={`flex-1 truncate text-sm ${isHome ? 'text-slate-200' : 'text-slate-400'}`}>{isHome ? away?.name : home?.name}</span>
                         <span className="text-xs text-slate-500">{isHome ? '🏠' : '✈️'}</span>
                         <ResultPill m={m} perspective={clubId} />
@@ -167,11 +169,15 @@ export function CalendarScreen() {
               {shownSeason.map((m) => {
                 const comp = world.competitions[m.competitionId];
                 const isLeague = comp?.type === 'league';
+                const phase = phaseOfMatch(world, m);
                 return (
                   <tr key={m.id} className={`border-t border-surface-700/40 ${m.homeId === clubId || m.awayId === clubId ? 'bg-accent/[0.03]' : ''}`}>
-                    <td className="table-td font-mono text-slate-500">{isLeague ? `R${m.round}` : '—'}</td>
+                    <td className="table-td font-mono text-slate-500">{isLeague ? (phase ? phase : `R${m.round}`) : '—'}</td>
                     <td className="table-td text-slate-500">{formatDateBR(m.date)}</td>
-                    <td className="table-td text-xs text-slate-400">{comp?.name ?? '—'}</td>
+                    <td className="table-td text-xs text-slate-400">
+                      {comp?.name ?? '—'}
+                      {phase && <span className="ml-1.5 badge bg-accent/10 text-accent border border-accent/30 text-[9px] px-1.5 py-0">{phase}</span>}
+                    </td>
                     <td className="table-td">
                       <div className="flex items-center gap-1.5">
                         <ClubCrest club={world.clubs[m.homeId]} size={20} />

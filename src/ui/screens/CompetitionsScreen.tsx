@@ -336,6 +336,37 @@ function SerieDView({ comp, world, onClub, isMine, userClubId }: { comp: Competi
     return { name: round.name, inProgress: nextHasUser, eliminated: !nextHasUser };
   })();
 
+  // próximo confronto do usuário no mata-mata: a primeira partida dele ainda não jogada (ida ou volta)
+  const nextTie = (() => {
+    if (!userClubId) return null;
+    for (let ri = 0; ri < comp.rounds.length; ri++) {
+      const round = comp.rounds[ri];
+      for (const id of round.matchIds ?? []) {
+        const m = store?.matches.find((x) => x.id === id);
+        if (!m) continue;
+        if (m.homeId !== userClubId && m.awayId !== userClubId) continue;
+        if (m.played) continue;
+        const oppId = m.homeId === userClubId ? m.awayId : m.homeId;
+        const opp = oppId && oppId !== '__TBD__' ? world.clubs[oppId] : null;
+        const isHome = m.homeId === userClubId;
+        return {
+          roundName: round.name,
+          oppId: oppId && oppId !== '__TBD__' ? oppId : null,
+          oppName: opp ? opp.name : null,
+          oppShort: opp ? opp.shortName : null,
+          date: m.date,
+          isHome,
+          leg: (() => {
+            const legIdx = round.matchIds.findIndex((x) => x === id);
+            return legIdx % 2 === 0 ? 'ida' : 'volta';
+          })(),
+          defined: !!opp,
+        };
+      }
+    }
+    return null;
+  })();
+
   return (
     <div className="space-y-5">
       {/* cabeçalho com o formato */}
@@ -347,6 +378,23 @@ function SerieDView({ comp, world, onClub, isMine, userClubId }: { comp: Competi
             {userPhase.eliminated ? '❌ Você foi eliminado' : userPhase.inProgress ? '⚽ Você está disputando' : '🏁 Sua fase'}
             <span className="font-bold">{userPhase.name}</span>
             {!userPhase.eliminated && userPhase.inProgress && <span className="text-xs opacity-80">— em andamento</span>}
+          </div>
+        )}
+        {nextTie && !userPhase?.eliminated && (
+          <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-gold/30 bg-gold/5 px-3 py-2 text-sm text-slate-200">
+            <span className="text-xs font-semibold uppercase tracking-wider text-gold">🎯 Próximo confronto — {nextTie.roundName} ({nextTie.leg})</span>
+            <span className="flex items-center gap-1.5">
+              <span>{nextTie.isHome ? '🏠' : '✈️'}</span>
+              {nextTie.defined ? (
+                <>
+                  <ClubCrest club={world.clubs[nextTie.oppId!]} size={18} />
+                  <span className="font-semibold">{nextTie.oppName}</span>
+                  <span className="text-xs text-slate-400">· {formatDateBR(nextTie.date)}</span>
+                </>
+              ) : (
+                <span className="italic text-slate-400">adversário a definir (aguardando chaveamento)</span>
+              )}
+            </span>
           </div>
         )}
       </div>

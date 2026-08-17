@@ -177,12 +177,23 @@ export function SeasonEndScreen() {
       if (!participated) continue;
       const champ = cup.champions.find((c) => c.season === world.season);
       const round = cupRoundReached(store, cup.rounds, myClubId);
+      // o clube ainda está vivo no mata-mata? (jogou a última fase mas não foi eliminado → avançou)
+      const alive = (() => {
+        if (!round || cup.status === 'finished') return false;
+        const lastRound = cup.rounds.find((r) => r.name === round);
+        if (!lastRound) return false;
+        const played = store.matches.filter(
+          (m) => m.played && (m.homeId === myClubId || m.awayId === myClubId) && lastRound.matchIds.includes(m.id),
+        );
+        return played.length > 0;
+      })();
       competitionResults.push({
         name: cup.name,
         result:
           champ?.champion === myClub?.name ? '🏆 Campeão' :
           champ?.runnerUp === myClub?.name ? '🥈 Vice-campeão' :
-          round ? round : 'Participou',
+          round && alive ? `Em andamento: ${round}` :
+          round ? `Eliminado: ${round}` : 'Participou',
         champion: champ?.champion ?? '—',
       });
     }

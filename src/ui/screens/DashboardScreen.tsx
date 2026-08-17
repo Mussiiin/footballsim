@@ -3,7 +3,7 @@ import { useGame } from '../../state/store';
 import { ClubCrest, StatCard, FormRow, PlayerAvatar, Modal, ResultPill } from '../components';
 import { formatDateBR } from '../../lib/date';
 import { fmtMoney, fmtInt } from '../../lib/format';
-import { nextMatchForClub, lastMatchForClub, positionOf, sortedStandings } from '../../game/competitions';
+import { nextMatchForClub, lastMatchForClub, positionOf, sortedStandings, phaseForClub } from '../../game/competitions';
 import { overallOf } from '../../game/overall';
 import { CalendarDays, ChevronRight, Users, Wallet, AlertTriangle } from 'lucide-react';
 
@@ -28,29 +28,24 @@ export function DashboardScreen() {
   const pos = leagueComp && club ? positionOf(leagueComp, club.id) : 0;
   const standings = leagueComp ? sortedStandings(leagueComp).slice(0, 8) : [];
 
-  // fase atual de uma liga com mata-mata (ex.: Série D) — onde o usuário está agora
+  // competições de mata-mata do usuário (copa nacional, continental, Série D) — fase atual de cada uma
+  const knockoutComps = useMemo(() => {
+    if (!clubId) return [];
+    const out: { comp: NonNullable<typeof leagueComp>; phase: string }[] = [];
+    for (const c of Object.values(world.competitions)) {
+      if (c.type !== 'cup' && c.type !== 'continental' && !c.knockoutAfterGroups) continue;
+      // liga: só a do usuário (Série D); copas/continental: só as que o usuário participa
+      if (c.knockoutAfterGroups && c.id !== leagueComp?.id) continue;
+      const phase = phaseForClub(world, c, clubId);
+      if (phase) out.push({ comp: c, phase });
+    }
+    return out;
+  }, [world, clubId, leagueComp]);
+
+  // fase atual de uma liga com mata-mata (ex.: Série D) — "Fase de grupos" enquanto não chega ao mata-mata
   const leaguePhase = useMemo(() => {
     if (!leagueComp || !clubId || !leagueComp.knockoutAfterGroups) return null;
-    const store = world.cupMatches[leagueComp.id];
-    const koMatches = store?.matches ?? [];
-    const inKo = (id: string) => koMatches.some((m) => m.homeId === id || m.awayId === id);
-    if (!inKo(clubId)) return 'Fase de grupos';
-    const rounds = leagueComp.rounds ?? [];
-    let lastIdx = -1;
-    rounds.forEach((r, ri) => {
-      if (r.matchIds.some((id) => koMatches.some((m) => m.id === id && (m.homeId === clubId || m.awayId === clubId)))) lastIdx = ri;
-    });
-    if (lastIdx < 0) return 'Fase de grupos';
-    const round = rounds[lastIdx];
-    const userMatches = koMatches.filter((m) => round.matchIds.includes(m.id) && (m.homeId === clubId || m.awayId === clubId));
-    const playedCount = userMatches.filter((m) => m.played).length;
-    const expected = Math.min(2, userMatches.length);
-    if (playedCount < expected) return round.name;
-    // fase jogada: avançou se a próxima tem partida dele
-    const nextHas = lastIdx + 1 < rounds.length && rounds[lastIdx + 1].matchIds.some((id) =>
-      koMatches.some((m) => m.id === id && (m.homeId === clubId || m.awayId === clubId)),
-    );
-    return nextHas ? rounds[lastIdx + 1].name : `Eliminado: ${round.name}`;
+    return phaseForClub(world, leagueComp, clubId) ?? 'Fase de grupos';
   }, [leagueComp, world, clubId]);
 
   const doAdvance = async (kind: 'day' | 'week' | 'match') => {
@@ -151,6 +146,28 @@ export function DashboardScreen() {
         <StatCard icon={<Wallet size={18} />} label="Caixa" value={fmtMoney(club.balance)} sub={`Orçamento ${fmtMoney(club.budget)}`} accent="bg-gold/10 text-gold" />
         <StatCard label="Força do elenco" value={club.squadStrength.toFixed(1)} sub={`${squad.length} jogadores · ${club.averageAge.toFixed(1)} anos`} />
       </div>
+
+      {/* fase atual de cada competição de mata-mata (copa, continental, Série D) */}
+      {knockoutComps.length > 0 && (
+        <div className="card p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">🏆 Fase atual das competições</p>
+          <div className="flex flex-wrap gap-2">
+            {knockoutComps.map(({ comp, phase }) => {
+              const eliminated = phase.startsWith('Eliminado');
+              return (
+                <button
+                  key={comp.id}
+                  onClick={() => navigate('competitions')}
+                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition ${eliminated ? 'border-red-500/30 bg-red-500/5 hover:bg-red-500/10' : 'border-accent/30 bg-accent/5 hover:bg-accent/10'}`}
+                >
+                  <span className="text-slate-200">{comp.name}</span>
+                  <span className={`badge ${eliminated ? 'bg-red-500/15 text-red-400 border border-red-500/30' : 'bg-accent/15 text-accent border border-accent/30'}`}>{phase}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2 space-y-5">
