@@ -183,14 +183,14 @@ function NextMatchCard({ match, isUserMatch, isMine, isPlayable, onPlay, world, 
           <ClubCrest club={home} size={44} />
           <div>
             <p className="font-semibold text-slate-100">{home?.name}</p>
-            <p className="text-xs text-slate-500">{clubId && match.homeId === clubId ? '🏠 Casa' : ''}</p>
+            <p className="text-xs text-slate-500">🏠 Casa</p>
           </div>
         </div>
         <div className="text-center text-2xl font-display font-extrabold text-slate-200">VS</div>
         <div className="flex items-center gap-3 flex-1 justify-end">
           <div className="text-right">
             <p className="font-semibold text-slate-100">{away?.name}</p>
-            <p className="text-xs text-slate-500">{clubId && match.awayId === clubId ? '🏠 Casa' : ''}</p>
+            <p className="text-xs text-slate-500">✈️ Fora</p>
           </div>
           <ClubCrest club={away} size={44} />
         </div>

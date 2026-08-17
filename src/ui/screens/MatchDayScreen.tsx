@@ -71,7 +71,7 @@ export function MatchDayScreen() {
           <div className="flex-1 flex flex-col items-center gap-2">
             <ClubCrest club={home} size={72} />
             <p className="font-display font-bold text-slate-100 text-center">{home.name}</p>
-            <span className="badge bg-surface-700 text-slate-300">{isHome ? '🏠 Casa' : '✈️ Fora'}</span>
+            <span className="badge bg-surface-700 text-slate-300">🏠 Casa</span>
           </div>
           <div className="text-center">
             <p className="text-4xl font-display font-extrabold text-slate-200">VS</p>
@@ -80,7 +80,7 @@ export function MatchDayScreen() {
           <div className="flex-1 flex flex-col items-center gap-2">
             <ClubCrest club={away} size={72} />
             <p className="font-display font-bold text-slate-100 text-center">{away.name}</p>
-            <span className="badge bg-surface-700 text-slate-300">{!isHome ? '🏠 Casa' : '✈️ Fora'}</span>
+            <span className="badge bg-surface-700 text-slate-300">✈️ Fora</span>
           </div>
         </div>
 

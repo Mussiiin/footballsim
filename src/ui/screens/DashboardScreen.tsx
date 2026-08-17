@@ -140,14 +140,14 @@ export function DashboardScreen() {
                   <ClubCrest club={world.clubs[next.homeId]} size={48} />
                   <div>
                     <p className="font-semibold text-slate-100">{world.clubs[next.homeId].name}</p>
-                    <p className="text-xs text-slate-500">{next.homeId === clubId ? '🏠 Casa' : 'Fora'}</p>
+                    <p className="text-xs text-slate-500">🏠 Casa</p>
                   </div>
                 </div>
                 <div className="text-center text-3xl font-display font-extrabold text-slate-200">VS</div>
                 <div className="flex items-center gap-3 flex-1 justify-end">
                   <div className="text-right">
                     <p className="font-semibold text-slate-100">{world.clubs[next.awayId].name}</p>
-                    <p className="text-xs text-slate-500">{next.awayId === clubId ? '🏠 Casa' : 'Fora'}</p>
+                    <p className="text-xs text-slate-500">✈️ Fora</p>
                   </div>
                   <ClubCrest club={world.clubs[next.awayId]} size={48} />
                 </div>
