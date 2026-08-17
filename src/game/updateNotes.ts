@@ -34,13 +34,63 @@ export interface UpdateNoteVersion {
 }
 
 /** Versão do build atual do jogo (a mais recente disponível). */
-export const GAME_VERSION = '1.6.0';
+export const GAME_VERSION = '1.7.0';
 
 /** Versão "instalada" padrão de quem nunca passou por uma atualização. */
 const DEFAULT_APPLIED_VERSION = '1.4.2';
 
 /** Histórico completo de versões (mais recente primeiro). */
 export const UPDATE_HISTORY: UpdateNoteVersion[] = [
+  {
+    version: '1.7.0',
+    title: 'Copa do Brasil com premiação e Oitavas',
+    date: '16/08/2026',
+    required: false,
+    newFeatures: [
+      {
+        title: 'Premiação da Copa do Brasil',
+        description: 'O clube recebe os valores reais de 2026 ao avançar de fase: 1ª R$ 400 mil, cotas A/B na 2ª-4ª fase, Oitavas R$ 3 mi, Quartas R$ 4 mi, Semi R$ 9 mi, vice R$ 34 mi e campeão R$ 78 mi — tudo pago automaticamente ao classificar, sem duplicação.',
+      },
+      {
+        title: 'Oitavas de final no chaveamento',
+        description: 'A Copa do Brasil agora tem 8 fases (1ª-4ª, Oitavas, Quartas, Semifinal e Final), com os cabeças de chave entrando ao longo das fases iniciais — como na competição real.',
+      },
+      {
+        title: 'Card de premiação na competição',
+        description: 'Na tela da Copa: premiação recebida, prêmio da fase atual, quanto ainda pode ganhar e a projeção de total se for campeão ou vice, com histórico das fases recebidas.',
+      },
+    ],
+    improvements: [
+      {
+        title: 'Histórico de premiações em Finanças',
+        description: 'Cada premiação aparece como transação (competição, fase, valor e data) na tela de Finanças da temporada.',
+      },
+      {
+        title: 'Mensagens de premiação na Central',
+        description: 'Ao classificar, o clube recebe uma mensagem na Central de Mensagens com a nova categoria Finanças.',
+      },
+      {
+        title: 'Atualizações automáticas',
+        description: 'O popup de atualização aparece sozinho a cada nova publicação do jogo, sem precisar de atualização manual de versão.',
+      },
+    ],
+    bugFixes: [
+      {
+        title: 'Goleiro no ataque',
+        description: '“Melhor time”, “Time descansado”, troca de formação e escalações automáticas nunca mais escalam goleiro em vaga de linha enquanto houver jogador de linha disponível.',
+      },
+      {
+        title: 'Card de premiação com byes',
+        description: 'Clubes cabeça de chave (que entram direto na 2ª fase) não são mais marcados como eliminados no card de premiação.',
+      },
+    ],
+    football: [
+      {
+        title: 'Chaveamento real da Copa',
+        description: '80 clubes, 79 partidas e 8 fases — o prêmio de R$ 3 mi das Oitavas de final agora é pago de verdade.',
+      },
+    ],
+  },
   {
     version: '1.6.0',
     title: 'Resumo de Temporada e Navegação',
