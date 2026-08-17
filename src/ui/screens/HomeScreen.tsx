@@ -28,8 +28,8 @@ export function HomeScreen() {
             Football<span className="text-gradient">Sim</span>
           </h1>
           <p className="text-center text-slate-400 mt-3 max-w-md mx-auto">
-            Comande seu clube, monte o elenco, defina a tática e escreva sua história no futebol.
-            Cada partida, cada transferência e cada temporada importa.
+            Comande seu clube, monte o elenco, defina a tática e escreva sua história no futebol —
+            da Série D ao topo do futebol brasileiro. Cada partida, cada transferência e cada temporada importa.
           </p>
         </div>
 
