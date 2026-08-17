@@ -82,7 +82,8 @@ const FILE_FEATURES = {
 const releaseFiles = ['src/game/updateNotes.ts', 'public/manifest.webmanifest'];
 const featurePending = pending.filter((p) => !releaseFiles.some((f) => p.includes(f)));
 if (featurePending.length > 0) {
-  const paths = featurePending.map((p) => p.slice(3).split(' ')[0]);
+  // formato porcelain "XY path" pode variar (com/sem espaço inicial) e ter \r no Windows
+  const paths = featurePending.map((p) => p.replace(/\r/g, '').trim().split(/\s+/).pop());
   const features = [...new Set(paths.map((p) => FILE_FEATURES[p] ?? 'Mecânicas do jogo').filter(Boolean))];
   const subject = `Atualizações: ${features.join(', ')}`;
   const body = paths.map((p) => `- ${p}: ${FILE_FEATURES[p] ?? 'mecânica'}`).join('\n');

@@ -89,7 +89,7 @@ export function CalendarScreen() {
         <div className="card p-5">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Próximos compromissos</p>
           <div className="space-y-2">
-            {upcomingDays.length === 0 && <p className="text-sm text-slate-500">Sem partidas agendadas.</p>}
+            {upcomingDays.length === 0 && <p className="text-sm text-slate-500">Nenhuma partida agendada nos próximos dias.</p>}
             {upcomingDays.map((d) => {
               const ms = clubMatchesByDate.get(d)!;
               const dow = WEEKDAYS_SHORT[new Date(d + 'T12:00:00').getDay()];
