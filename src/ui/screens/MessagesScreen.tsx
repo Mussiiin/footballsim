@@ -56,7 +56,7 @@ export function MessagesScreen() {
       <div className="flex items-center gap-3">
         <button onClick={goBack} className="btn-ghost !px-3 text-sm"><ArrowLeft size={16} /> Voltar</button>
         <div>
-          <h1 className="font-display font-bold text-2xl text-slate-100">💬 Mensagens</h1>
+          <h1 className="font-display font-bold text-2xl text-slate-100">💬 Central de Mensagens</h1>
           <p className="text-sm text-slate-500">
             {unread > 0 ? <span className="text-accent font-semibold">{unread} não lida(s)</span> : 'Caixa de entrada em dia'} · Conversas, propostas e avisos do clube
           </p>

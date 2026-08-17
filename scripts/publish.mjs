@@ -91,7 +91,9 @@ if (featurePending.length > 0) {
   const subject = `Atualizações: ${features.join(', ')}`;
   const body = paths.map((p) => `- ${p}: ${FILE_FEATURES[p] ?? 'mecânica'}`).join('\n');
   console.log(`📝 Commitando mudanças pendentes (${featurePending.length} arquivo(s))…`);
-  sh(`git add -A`);
+  // stage SOMENTE os arquivos do recurso — nunca -A, para não arrastar
+  // updateNotes.ts/manifest (que pertencem ao commit da release) para cá
+  sh(`git add ${paths.map((p) => `"${p}"`).join(' ')}`);
   sh(`git commit -m "${subject.replace(/"/g, '\\"')}" -m "${body.replace(/"/g, '\\"')}"`);
   console.log(`   ✔ ${subject}`);
 } else {
