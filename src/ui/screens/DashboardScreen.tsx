@@ -123,7 +123,7 @@ export function DashboardScreen() {
         <div className="flex gap-2">
           <button onClick={() => void doAdvance('day')} disabled={!!advancing} className="btn-secondary">{advancing === 'day' ? '…' : 'Avançar dia'}</button>
           <button onClick={() => void doAdvance('week')} disabled={!!advancing} className="btn-secondary">{advancing === 'week' ? '…' : 'Avançar semana'}</button>
-          <button onClick={() => void doAdvance('match')} disabled={!!advancing} className="btn-primary">{advancing === 'match' ? '…' : '⚽ Próxima partida'}</button>
+          <button onClick={() => void doAdvance('match')} disabled={!!advancing} className="btn-primary">{advancing === 'match' ? '…' : '⚽ Jogar próxima partida'}</button>
         </div>
       </div>
 
