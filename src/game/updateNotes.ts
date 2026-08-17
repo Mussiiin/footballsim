@@ -34,13 +34,28 @@ export interface UpdateNoteVersion {
 }
 
 /** Versão do build atual do jogo (a mais recente disponível). */
-export const GAME_VERSION = '1.8.7';
+export const GAME_VERSION = '1.8.8';
 
 /** Versão "instalada" padrão de quem nunca passou por uma atualização. */
 const DEFAULT_APPLIED_VERSION = '1.4.2';
 
 /** Histórico completo de versões (mais recente primeiro). */
 export const UPDATE_HISTORY: UpdateNoteVersion[] = [
+  {
+    version: '1.8.8',
+    title: 'Atualização 1.8.8',
+    date: '17/08/2026',
+    required: false,
+    newFeatures: [
+    ],
+    improvements: [
+      { title: 'Mecânicas do jogo, Calendário', description: 'scripts/publish.mjs: mecânica' },
+    ],
+    bugFixes: [
+    ],
+    football: [
+    ],
+  },
   {
     version: '1.8.7',
     title: 'Atualização 1.8.7',
