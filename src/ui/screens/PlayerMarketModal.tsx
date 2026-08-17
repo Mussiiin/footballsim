@@ -7,11 +7,12 @@ import { Player, POSITION_GROUPS } from '../../lib/types';
 import {
   marketAnalysis, computeInterest, latestReport, officerAdvice,
   negotiationForPlayer, negotiationStatusLabel, roleForPlayer, estimateFormLabel,
-  injuryDaysTotal,
+  injuryDaysTotal, isEligibleForPreContract,
 } from '../../game/negotiation';
 import { squadOf } from '../../game/transfers';
-import { daysBetween } from '../../lib/date';
 import { NegotiationKind } from '../../game/negotiation';
+import { sendInquiry, inquiryForPlayer, INQUIRY_LABEL, inquiryIcon } from '../../game/sondagem';
+import { openPlayerConversation } from '../../game/messages';
 
 function arrow(prev: number, cur: number): string {
   if (cur > prev + 0.05) return '↑';
@@ -20,10 +21,11 @@ function arrow(prev: number, cur: number): string {
 }
 
 export function PlayerMarketModal({ player, onClose, readOnly = false }: { player: Player; onClose: () => void; readOnly?: boolean }) {
-  const { career, scoutPlayer: scout, toggleShortlist, startNegotiation, negotiationRoute } = useGame();
+  const { career, scoutPlayer: scout, toggleShortlist, startNegotiation, negotiationRoute, touch } = useGame();
   const world = career!.world;
   const club = world.clubs[career!.clubId];
   const [scouting, setScouting] = useState(false);
+  const inq = inquiryForPlayer(world, player.id);
 
   const analysis = useMemo(() => marketAnalysis(world, player), [world, player]);
   const interest = useMemo(() => computeInterest(world, player, career!.clubId), [world, player, career]);
@@ -48,8 +50,7 @@ export function PlayerMarketModal({ player, onClose, readOnly = false }: { playe
   const inWindow = world.date.slice(5) >= world.windows.summer.start && world.date.slice(5) <= world.windows.summer.end
     || world.date.slice(5) >= world.windows.winter.start && world.date.slice(5) <= world.windows.winter.end;
 
-  const seasonEnd = `${Number(world.season.slice(0, 4)) + 1}-06-30`;
-  const canPre = player.contract && player.contract.until <= seasonEnd && daysBetween(world.date, player.contract.until) <= 180;
+  const canPre = player.clubId !== career!.clubId && isEligibleForPreContract(player, world.date);
 
   const startKind = (kind: NegotiationKind) => {
     const n = startNegotiation(player.id, kind);
@@ -368,18 +369,40 @@ export function PlayerMarketModal({ player, onClose, readOnly = false }: { playe
               )}
               {player.clubId && (
                 <>
-                  {canPre && <button onClick={() => startKind('pre-contract')} className="btn-primary">Pré-contrato</button>}
-                  <button disabled={!inWindow} title={inWindow ? '' : 'Janela de transferências fechada'} onClick={() => startKind('transfer')} className="btn-primary flex-1 disabled:opacity-40">
-                    Negociar com o clube
-                  </button>
-                  <button disabled={!inWindow} title={inWindow ? '' : 'Janela de transferências fechada'} onClick={() => startKind('loan')} className="btn-secondary disabled:opacity-40">
-                    Empréstimo
+                  {canPre && <button onClick={() => startKind('pre-contract')} className="btn-primary !px-3">📝 Oferecer pré-contrato</button>}
+                  {inWindow ? (
+                    <>
+                      <button onClick={() => startKind('transfer')} className="btn-primary flex-1">💰 Negociar com o clube</button>
+                      <button onClick={() => startKind('loan')} className="btn-secondary !px-3">Empréstimo</button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => { sendInquiry(world, career!, player.id); touch(); }}
+                        className="btn-secondary !px-3"
+                        title={inq ? `Sondagem: ${INQUIRY_LABEL[inq.status]}` : 'Perguntar ao clube se está disposto a negociar'}
+                      >
+                        {inq && inq.status === 'pendente' ? '⏳ Sondagem enviada' : '🔎 Fazer sondagem'}
+                      </button>
+                      <button onClick={() => startKind('transfer')} className="btn-primary flex-1" title="Registra o interesse e negocia o valor; a transferência só é concluída na próxima janela">
+                        🤝 Negociar p/ próxima janela
+                      </button>
+                    </>
+                  )}
+                  <button onClick={() => openPlayerConversation(player.id)} className="btn-ghost !px-3" title="Conversar com o jogador sobre a transferência">
+                    💬 Conversar
                   </button>
                 </>
               )}
             </>
           ))}
         </div>
+        {inq && (
+          <p className="text-xs text-slate-400 px-1">
+            {inquiryIcon(inq.status)} {INQUIRY_LABEL[inq.status]}{inq.note ? ` — ${inq.note}` : ''}
+            {inq.suggestedFee > 0 && inq.status !== 'pendente' ? ` · Referência: €${fmtMoney(inq.suggestedFee)}` : ''}
+          </p>
+        )}
       </div>
     </Modal>
   );

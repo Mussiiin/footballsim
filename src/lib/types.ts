@@ -452,7 +452,11 @@ export interface PendingArrival {
 
 export type TalkTopic =
   | 'minutes' | 'starter' | 'bench' | 'loan' | 'exit' | 'raise' | 'contract' | 'position'
-  | 'training' | 'praise' | 'performance' | 'conflict' | 'plans' | 'youth' | 'veteran' | 'checkin';
+  | 'training' | 'praise' | 'performance' | 'conflict' | 'plans' | 'youth' | 'veteran' | 'checkin'
+  | 'recruit';
+
+/** Estágio da conversa de recrutamento (jogador de outro clube). */
+export type RecruitStage = 'intro' | 'project' | 'role' | 'wage' | 'interest' | 'close';
 
 export interface TalkOption {
   id: string;
@@ -470,6 +474,8 @@ export interface PlayerTalk {
   active: boolean;
   result?: string;       // mensagem após a resposta
   initiatedBy: 'player' | 'manager';
+  /** Estágio da conversa de recrutamento (apenas quando topic === 'recruit'). */
+  stage?: RecruitStage;
 }
 
 export type InboxCategory = 'transfer' | 'squad' | 'contract' | 'board' | 'finance';
@@ -966,12 +972,28 @@ export interface SeasonSummary {
   lastSeason?: { season: string; position: number; points: number; gf: number; ga: number } | null;
 }
 
+export type InquiryStatus = 'pendente' | 'aberto' | 'so-alta' | 'nao-vende' | 'indisponivel';
+
+/** Sondagem enviada a outro clube (mercado vivo mesmo com a janela fechada). */
+export interface Inquiry {
+  id: string;
+  playerId: string;
+  sellerClubId: string;
+  date: string;           // data em que a sondagem foi enviada
+  status: InquiryStatus;  // pendente → resposta da IA
+  responseDate: string | null;
+  note: string | null;
+  /** valor de referência para uma futura negociação (o vendedor pode sinalizar). */
+  suggestedFee: number;
+}
+
 export interface World {
   version: number;
   seed: string;
   negotiations: Record<string, TransferNegotiation>;
   renewals: Record<string, RenewalNegotiation>;
   incomingOffers: IncomingOffer[];
+  inquiries: Inquiry[]; // sondagens enviadas a outros clubes
   pendingArrivals: PendingArrival[]; // contratações em trânsito (documentação/viagem/exames)
   playerTalks: Record<string, PlayerTalk>; // conversas entre treinador e jogadores
   marketHighlights: MarketHighlight[];

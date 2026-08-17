@@ -9,6 +9,7 @@ import {
 } from '../../game/negotiation';
 import { daysBetween, formatDateBR } from '../../lib/date';
 import { openPlayerConversation } from '../../game/messages';
+import { isInTransferWindow } from '../../game/sim';
 
 const ROLE_OPTIONS: { id: SquadRole; label: string }[] = [
   { id: 'Titular absoluto', label: 'Titular absoluto' },
@@ -97,9 +98,20 @@ export function NegotiationScreen({ playerId }: { playerId: string }) {
   const lastSellerCounter = [...neg.offers].reverse().find((o) => o.side === 'seller');
   const isTerminal = ['rejeitada', 'cancelada', 'expirada'].includes(neg.status);
 
+  const windowOpen = isInTransferWindow(world, world.date);
+
   return (
     <div className="space-y-4 animate-fadeUp max-w-3xl mx-auto">
       <button onClick={() => navigate('transfers')} className="btn-ghost !px-3 !py-1.5 text-xs">← Voltar ao mercado</button>
+      {/* Janela fechada: transferência normal fica agendada para a próxima janela */}
+      {!windowOpen && neg && neg.kind !== 'free' && neg.kind !== 'pre-contract' && (
+        <div className="card p-4 border-gold/30 bg-gold/5">
+          <p className="text-sm text-gold font-semibold">⏳ Janela de transferências fechada</p>
+          <p className="text-xs text-slate-400 mt-1">
+            Transferências normais só podem ser <b>registradas</b> durante a janela. Toda a negociação vale normalmente — quando houver acordo, ele fica <b>agendado</b> e {p.firstName} permanece no clube atual até a janela abrir.
+          </p>
+        </div>
+      )}
       {/* Cabeçalho */}
       <div className="card p-4">
         <div className="flex flex-wrap items-center gap-3">

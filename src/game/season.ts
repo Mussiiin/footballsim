@@ -10,6 +10,7 @@ import { sortedStandings, topScorersOf } from './competitions';
 import { seasonalDevelopment, agePlayers, processRetirements, advanceYouthSeason } from './development';
 import { addNews, newsFromTitle, newsFromRetirement, notify } from './news';
 import { isVitalPlayer, squadOf } from './transfers';
+import { balanceAllSquads } from './squad';
 import { resetMatchCounter, leagueFixtures, cupFixtures, continentalFixtures } from './worldgen';
 import { stadiumSeasonReset } from './stadium';
 
@@ -311,6 +312,9 @@ function setupNewSeason(world: World): void {
     // estádio: histórico da temporada, camarotes e naming rights renovam
     stadiumSeasonReset(world, club, prevSeason);
   }
+
+  // padronização de elencos: completa lacunas que surgiram ao longo da temporada
+  balanceAllSquads(world, seasonYear);
 
   // atualiza clubes: ligas após promoção/rebaixamento
   for (const country of world.countries) {

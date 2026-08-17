@@ -3,6 +3,7 @@
 // Com VITE_SUPABASE_URL/ANON_KEY: tabela `careers` no Supabase com RLS.
 import { Career, Settings, SeasonStats, PlayerHistoryEntry, RecruitmentOfficer } from './types';
 import { allocateSectorSeats } from '../game/stadium';
+import { balanceAllSquads } from '../game/squad';
 import { addDays } from './date';
 
 // ------------------------------------------------------------
@@ -24,6 +25,7 @@ function migrateCareer(c: Career): Career {
     r.promises = r.promises ?? [];
     r.rejectedReason = r.rejectedReason ?? null;
   }
+  if (!w.inquiries) w.inquiries = [];
   if (!w.incomingOffers) w.incomingOffers = [];
   for (const o of w.incomingOffers) {
     o.messages = o.messages ?? [];
@@ -203,6 +205,14 @@ function migrateCareer(c: Career): Career {
   // estado de fim de temporada (intertemporada) — saves antigos não o tinham
   w.seasonEnded = w.seasonEnded ?? false;
   w.seasonEndSummary = w.seasonEndSummary ?? null;
+  // padronização de elencos: completa lacunas de saves antigos (3 GK/8 DEF/8 MID/9 ATT)
+  try {
+    const squadYear = Number(String(w.season ?? '2026').slice(0, 4) || 2026);
+    balanceAllSquads(w, squadYear);
+  } catch (e) {
+    // nunca impede o carregamento do save
+    console.warn('balanceAllSquads falhou na migração', e);
+  }
   return c;
 }
 

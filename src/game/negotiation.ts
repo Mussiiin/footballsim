@@ -15,6 +15,7 @@ import { overallOf, refreshClubCaches } from './overall';
 import { clamp, fmtMoney } from '../lib/format';
 import { addDays, daysBetween } from '../lib/date';
 import { sellingPrice, executeTransfer, isVitalPlayer, squadOf, freeAgents } from './transfers';
+import { isInTransferWindow } from './sim';
 import { addNews, notify } from './news';
 import { pushOfferMessage } from './messages';
 import { sackManager } from './career';
@@ -428,6 +429,37 @@ export function officerAdvice(world: World, career: Career, playerId: string): O
 }
 
 // ------------------------------------------------------------
+// Pré-contrato — elegibilidade real por contrato
+// ------------------------------------------------------------
+/** Período em meses antes do fim do contrato em que o pré-contrato é permitido. */
+export const PRE_CONTRACT_MONTHS = 6;
+export const PRE_CONTRACT_DAYS = PRE_CONTRACT_MONTHS * 30; // 180 dias
+
+/**
+ * Um jogador só pode receber proposta de PRÉ-CONTRATO quando:
+ * 1. pertence a outro clube (tem clube e não é o do usuário — o caller confere);
+ * 2. possui contrato válido com data de término;
+ * 3. o contrato termina dentro de PRE_CONTRACT_DAYS a partir da data atual;
+ * 4. o contrato ainda não expirou (termina no futuro);
+ * 5. não está transferido / em trânsito;
+ * 6. não renovou recentemente (signedAt não pode ser dos últimos 30 dias);
+ * 7. continua ativo no clube atual.
+ */
+export function isEligibleForPreContract(player: Player, currentGameDate: string): boolean {
+  if (!player.clubId) return false;               // precisa pertencer a um clube
+  if (player.status !== 'active') return false;
+  if (player.arrivingUntil) return false;         // já transferido (em trânsito/registro)
+  if (!player.contract || !player.contract.until) return false;
+  const days = daysBetween(currentGameDate, player.contract.until);
+  if (days <= 0 || days > PRE_CONTRACT_DAYS) return false; // fora da janela de 6 meses
+  // renovou recentemente? renovação deixa signedAt = data de hoje
+  if (player.contract.signedAt && daysBetween(player.contract.signedAt, currentGameDate) < 30) {
+    return false;
+  }
+  return true;
+}
+
+// ------------------------------------------------------------
 // Início de negociação
 // ------------------------------------------------------------
 const STATUS_LABEL: Record<TransferNegotiation['status'], string> = {
@@ -442,11 +474,17 @@ export function negotiationStatusLabel(s: TransferNegotiation['status']): string
   return STATUS_LABEL[s];
 }
 
-export function startNegotiation(world: World, career: Career, playerId: string, kind: NegotiationKind): TransferNegotiation {
+export function startNegotiation(world: World, career: Career, playerId: string, kindParam: NegotiationKind): TransferNegotiation {
   const p = world.players[playerId];
   if (!p) throw new Error('Jogador não encontrado');
   if (world.negotiations[playerId] && !['rejeitada', 'cancelada', 'expirada', 'concluida'].includes(world.negotiations[playerId].status)) {
     return world.negotiations[playerId];
+  }
+  // defesa: pré-contrato SÓ para jogadores realmente no período final do contrato.
+  // Se não for elegível, cai para o fluxo normal (transferência com o clube ou livre).
+  let kind: NegotiationKind = kindParam;
+  if (kind === 'pre-contract' && !isEligibleForPreContract(p, world.date)) {
+    kind = p.clubId ? 'transfer' : 'free';
   }
   const agent = ensureAgent(world, p);
   const interest = computeInterest(world, p, career.clubId);
@@ -1108,7 +1146,9 @@ export function completeRenewal(world: World, career: Career, renId: string): Re
 
   if (!p.contract) throw new Error('Jogador sem contrato');
   p.contract.signedAt = world.date;
-  p.contract.until = addDays(world.date, Math.max(1, ren.years) * 365);
+  // renovação nunca encurta o vínculo: parte do fim atual se ele for maior que a data de hoje
+  const base = p.contract.until > world.date ? p.contract.until : world.date;
+  p.contract.until = addDays(base, Math.max(1, ren.years) * 365);
   p.contract.wage = ren.wage;
   p.contract.bonus = ren.bonus;
   const releaseChance = ren.wage >= 120_000;
@@ -1586,7 +1626,10 @@ export function signDeal(world: World, career: Career, negId: string): SigningRe
 
   neg.status = 'concluida';
   neg.updatedAt = world.date;
-  neg.messages.push(msg('system', `Contratação concluída em ${world.date}. Bem-vindo, ${p.firstName}!`, world.date));
+  const windowOpenAtEnd = isInTransferWindow(world, world.date);
+  neg.messages.push(msg('system', windowOpenAtEnd
+    ? `Contratação concluída em ${world.date}. Bem-vindo, ${p.firstName}!`
+    : `🤝 Acordo registrado em ${world.date}. A transferência será concluída quando a janela abrir — ${p.firstName} permanece no ${fromName} até lá.`, world.date));
   const med = neg.medical;
   const medicalNote = med ? (med.status === 'conditional' ? med.note ?? null : null) : null;
 
@@ -2349,6 +2392,23 @@ export function checkPromises(world: World, career: Career, rng: RNG): void {
         }
       }
     }
+  }
+}
+
+/**
+ * Cancela pré-contratos ativos de um jogador — usado quando ele renova
+ * o contrato com o clube atual (o período de pré-contrato deixa de valer).
+ */
+export function cancelPreContractFor(world: World, career: Career | null, playerId: string): void {
+  const neg = world.negotiations[playerId];
+  if (!neg || neg.kind !== 'pre-contract') return;
+  if (['rejeitada', 'cancelada', 'expirada', 'concluida'].includes(neg.status)) return;
+  const p = world.players[playerId];
+  neg.status = 'cancelada';
+  neg.rejectedReason = 'O jogador renovou o contrato com o clube atual.';
+  neg.messages.push(msg('system', `Pré-contrato cancelado: ${p?.firstName ?? 'o jogador'} renovou com o clube atual e não está mais no período final do contrato.`, world.date));
+  if (career) {
+    notify(career, `❌ Pré-contrato cancelado: ${p?.firstName ?? 'o jogador'} renovou com o clube atual.`, 'danger', '❌');
   }
 }
 

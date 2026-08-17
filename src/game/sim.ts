@@ -11,6 +11,7 @@ import { aiBoardEvaluation, aiContractRenewals } from './ai';
 import { aiTransferActivity, executeTransfer, squadOf } from './transfers';
 import { tickNegotiations, aiMarketDeals, generateIncomingOffers, tickIncomingOffers, checkPromises } from './negotiation';
 import { tickArrivals } from './transfers';
+import { tickInquiries } from './sondagem';
 import { tickStadium } from './stadium';
 import { generateDailyTalk } from './playerTalks';
 import { finalizeSeason, isSeasonOver } from './season';
@@ -194,6 +195,9 @@ export function simulateOneDay(world: World, career: Career | null, difficulty: 
 
   // contratações em trânsito: documentação, viagem, exames e registro
   tickArrivals(world, career);
+
+  // sondagens a outros clubes (mercado vivo mesmo com a janela fechada)
+  tickInquiries(world, career);
 
   // promessas feitas em renovações/contratações: cumpridas ganham moral, quebradas derrubam
   if (career) checkPromises(world, career, dayRng);

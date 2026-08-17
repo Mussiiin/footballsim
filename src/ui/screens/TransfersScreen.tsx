@@ -7,9 +7,11 @@ import { fmtMoney } from '../../lib/format';
 import { ALL_POSITIONS, POSITION_LABELS, Position, Player, IncomingOffer } from '../../lib/types';
 import { isInTransferWindow } from '../../game/sim';
 import { daysBetween, formatDateBR } from '../../lib/date';
-import { marketAnalysis, computeInterest, interestLevel, negotiationForPlayer, activeNegotiations, negotiationStatusLabel } from '../../game/negotiation';
+import { marketAnalysis, computeInterest, interestLevel, negotiationForPlayer, activeNegotiations, negotiationStatusLabel, isEligibleForPreContract, startNegotiation } from '../../game/negotiation';
 import { PlayerMarketModal } from './PlayerMarketModal';
 import { openPlayerConversation } from '../../game/messages';
+import { squadComposition, SQUAD_TARGETS } from '../../game/squad';
+import { INQUIRY_LABEL, inquiryIcon, inquiryForPlayer } from '../../game/sondagem';
 
 type SortKey = 'overall' | 'potential' | 'valueAsc' | 'valueDesc' | 'ageAsc' | 'ageDesc' | 'costbenefit' | 'wage';
 
@@ -59,15 +61,15 @@ export function TransfersScreen({ initialTab }: { initialTab?: string }) {
 
   const candidates = useMemo(() => {
     let list = players.filter((p) => p.clubId !== career!.clubId);
-    const seasonEnd = `${Number(world.season.slice(0, 4)) + 1}-06-30`;
     if (scope === 'market') {
-      list = list.filter((p) => !p.clubId || p.transferListed || p.loanListed || (p.contract && p.contract.until <= seasonEnd && daysBetween(world.date, p.contract.until) <= 180));
+      list = list.filter((p) => !p.clubId || p.transferListed || p.loanListed || isEligibleForPreContract(p, world.date));
     } else if (scope === 'free') {
       list = list.filter((p) => !p.clubId);
     } else if (scope === 'loan') {
       list = list.filter((p) => p.loanListed || (p.clubId && p.isLoan === false));
     } else if (scope === 'expiring') {
-      list = list.filter((p) => p.contract && daysBetween(world.date, p.contract.until) <= 180);
+      // pré-contrato: SÓ jogadores realmente no período final do contrato (≤ 6 meses)
+      list = list.filter((p) => isEligibleForPreContract(p, world.date));
     }
     if (search) list = list.filter((p) => `${p.firstName} ${p.lastName}`.toLowerCase().includes(search.toLowerCase()));
     if (pos !== 'ALL') list = list.filter((p) => p.position === pos || p.secondaryPositions.includes(pos));
@@ -95,6 +97,7 @@ export function TransfersScreen({ initialTab }: { initialTab?: string }) {
   const negs = activeNegotiations(world);
   const pendingOffers = world.incomingOffers.filter((o) => o.status === 'pending');
   const mySquad = useMemo(() => squadOf(world, career!.clubId), [world, career]);
+  const inquiries = world.inquiries.filter((i) => i.sellerClubId !== career!.clubId);
 
   return (
     <div className="space-y-4 animate-fadeUp">
@@ -141,6 +144,41 @@ export function TransfersScreen({ initialTab }: { initialTab?: string }) {
         </div>
       )}
 
+      {/* status do elenco: ajuda o treinador a decidir se deve contratar/vender/emprestar */}
+      {(() => {
+        const comp = squadComposition(world, career!.clubId);
+        const t = SQUAD_TARGETS;
+        if (comp.total >= t.MAX) {
+          return (
+            <div className="card p-4 border-amber-500/30 bg-amber-500/5">
+              <p className="text-sm text-amber-300">
+                ⚠️ Nosso elenco já está cheio ({comp.total} jogadores). Talvez seja necessário <b>vender ou emprestar</b> alguns jogadores antes de contratar.
+              </p>
+              <p className="text-xs text-slate-400 mt-1">
+                🧤 {comp.GK} goleiros · 🛡️ {comp.DEF} defensores · ⚙️ {comp.MID} meio-campistas · ⚽ {comp.ATT} atacantes
+              </p>
+            </div>
+          );
+        }
+        if (comp.total <= t.MIN - 2 || comp.GK < 3 || comp.DEF < 8 || comp.MID < 8 || comp.ATT < 9) {
+          return (
+            <div className="card p-4 border-sky-500/30 bg-sky-500/5">
+              <p className="text-sm text-sky-300">
+                💡 Estamos com poucas opções no elenco ({comp.total} jogadores). Recomendo buscar reforços no mercado.
+              </p>
+              <p className="text-xs text-slate-400 mt-1">
+                🧤 {comp.GK}/3 goleiros · 🛡️ {comp.DEF}/8 defensores · ⚙️ {comp.MID}/8 meio-campistas · ⚽ {comp.ATT}/9 atacantes
+              </p>
+            </div>
+          );
+        }
+        return (
+          <p className="text-[11px] text-slate-500 px-1">
+            ✅ Elenco no padrão ({comp.total}/28) · 🧤 {comp.GK} · 🛡️ {comp.DEF} · ⚙️ {comp.MID} · ⚽ {comp.ATT}
+          </p>
+        );
+      })()}
+
       <Tabs
         tabs={[
           { id: 'market', label: 'Mercado' },
@@ -148,6 +186,7 @@ export function TransfersScreen({ initialTab }: { initialTab?: string }) {
           { id: 'watch', label: `Observados (${shortlist.length})` },
           { id: 'neg', label: `Negociações (${negs.length})` },
           { id: 'offers', label: `Propostas (${pendingOffers.length})` },
+          { id: 'inquiries', label: `🔎 Sondagens (${inquiries.length})` },
           { id: 'sell', label: `Vender (${mySquad.length})` },
           { id: 'log', label: 'Registro' },
         ]}
@@ -229,9 +268,14 @@ export function TransfersScreen({ initialTab }: { initialTab?: string }) {
                   const dot = interestDot(interest.score);
                   const negRaw = negotiationForPlayer(world, p.id);
                   const neg = negRaw && !['rejeitada', 'cancelada', 'expirada', 'concluida'].includes(negRaw.status) ? negRaw : null;
-                  const seasonEnd = `${Number(world.season.slice(0, 4)) + 1}-06-30`;
-                  const expiring = p.contract && p.contract.until <= seasonEnd;
-                  const tag = !p.clubId ? 'Livre' : p.transferListed ? 'Listado' : p.loanListed ? 'Empréstimo' : expiring ? 'Expira' : p.isLoan ? 'Emprestado' : '';
+                  // "Expira" (pré-contrato) só aparece quando o contrato realmente termina
+                  // dentro do período permitido (≤ 6 meses) e o jogador é elegível
+                  const expiring = isEligibleForPreContract(p, world.date);
+                  const inqStatus = inquiryForPlayer(world, p.id);
+                  const inqTag = inqStatus && inqStatus.status !== 'pendente'
+                    ? `${inquiryIcon(inqStatus.status)} ${INQUIRY_LABEL[inqStatus.status]}`
+                    : '';
+                  const tag = !p.clubId ? 'Livre' : p.transferListed ? 'Listado' : p.loanListed ? 'Empréstimo' : expiring ? 'Expira' : inqTag ? inqTag : p.isLoan ? 'Emprestado' : '';
                   return (
                     <tr key={p.id} className="border-t border-surface-700/40 hover:bg-surface-800/50 cursor-pointer" onClick={() => setView(p)}>
                       <td className="table-td">
@@ -372,6 +416,57 @@ export function TransfersScreen({ initialTab }: { initialTab?: string }) {
 
       {tab === 'offers' && (
         <IncomingOffersPanel />
+      )}
+
+      {tab === 'inquiries' && (
+        <div className="card p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">🔎 Sondagens enviadas</p>
+          {inquiries.length === 0 ? (
+            <Empty icon="🔎" title="Nenhuma sondagem" subtitle="Com a janela fechada, você ainda pode sondar jogadores de outros clubes pelo perfil de mercado." />
+          ) : (
+            <div className="space-y-2">
+              {inquiries.map((inq) => {
+                const q = world.players[inq.playerId];
+                if (!q) return null;
+                const seller = world.clubs[inq.sellerClubId];
+                const activeNeg = negotiationForPlayer(world, q.id);
+                const canNeg = (inq.status === 'aberto' || inq.status === 'so-alta') && !activeNeg;
+                return (
+                  <div key={inq.id} className="flex items-center gap-3 rounded-lg border border-surface-700 bg-surface-800/40 p-2.5">
+                    <button onClick={() => navigate(`player:${q.id}`)} title="Ver jogador">
+                      <PlayerAvatar player={q} size={36} />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-slate-200 truncate">{q.firstName} {q.lastName} <span className="text-slate-500 font-normal">· {seller?.shortName ?? '—'}</span></p>
+                      <p className="text-[11px] text-slate-400">
+                        {inquiryIcon(inq.status)} {INQUIRY_LABEL[inq.status]}
+                        {inq.note ? ` — ${inq.note}` : ''}
+                      </p>
+                      {inq.status !== 'pendente' && inq.suggestedFee > 0 && (
+                        <p className="text-[10px] text-gold">Referência: €{fmtMoney(inq.suggestedFee)}</p>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-slate-500">{formatDateBR(inq.date)}</span>
+                    {inq.status === 'pendente' ? (
+                      <span className="text-[10px] text-slate-500">⏳ aguardando resposta</span>
+                    ) : canNeg ? (
+                      <button
+                        onClick={() => { const n = startNegotiation(world, career!, q.id, 'transfer'); navigate(`negotiation:${q.id}`); void n; }}
+                        className="btn-primary !px-3 !py-1.5 text-xs"
+                      >
+                        🤝 Negociar
+                      </button>
+                    ) : activeNeg ? (
+                      <button onClick={() => navigate(`negotiation:${q.id}`)} className="btn-secondary !px-3 !py-1.5 text-xs">Continuar →</button>
+                    ) : (
+                      <button onClick={() => openPlayerConversation(q.id)} className="btn-ghost !px-3 !py-1.5 text-xs">💬 Conversar</button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       )}
 
       {tab === 'sell' && (

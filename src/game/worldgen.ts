@@ -69,12 +69,44 @@ const emptySeasonStats = (): SeasonStats => ({
 // ------------------------------------------------------------
 // Geração de jogador
 // ------------------------------------------------------------
-const POSITION_TEMPLATE: Position[] = [
-  'GK', 'GK', 'GK',
-  'LB', 'LB', 'CB', 'CB', 'CB', 'CB', 'RB', 'RB',
-  'DM', 'DM', 'CM', 'CM', 'CM', 'CM', 'AM', 'AM',
-  'LW', 'LW', 'RW', 'RW', 'ST', 'ST', 'CF',
+// Papel do jogador no elenco — define força e faixa etária
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export type SquadRole = 'starter' | 'rotation' | 'bench' | 'youth';
+
+const ROLE_DELTA: Record<SquadRole, number> = {
+  starter: 1,   // ⭐ titulares — plena força do clube
+  rotation: -4, // 🔄 rotação
+  bench: -8,    // 🪑 reservas
+  youth: -13,   // 🌱 jovens promessas
+};
+
+const ROLE_AGE: Record<SquadRole, [number, number]> = {
+  starter: [23, 32],
+  rotation: [21, 29],
+  bench: [19, 26],
+  youth: [16, 19],
+};
+
+// Elenco padrão: 28 jogadores — 3 GK / 8 DEF / 8 MID / 9 ATT
+// Ordenado por hierarquia: 11 titulares → 6 rotação → 6 reservas → 5 jovens
+const SQUAD_TEMPLATE: Array<{ pos: Position; role: SquadRole }> = [
+  // ⭐ Titulares (11)
+  { pos: 'GK', role: 'starter' }, { pos: 'RB', role: 'starter' }, { pos: 'CB', role: 'starter' },
+  { pos: 'CB', role: 'starter' }, { pos: 'LB', role: 'starter' }, { pos: 'DM', role: 'starter' },
+  { pos: 'CM', role: 'starter' }, { pos: 'CM', role: 'starter' }, { pos: 'AM', role: 'starter' },
+  { pos: 'RW', role: 'starter' }, { pos: 'ST', role: 'starter' },
+  // 🔄 Rotação (6)
+  { pos: 'GK', role: 'rotation' }, { pos: 'CB', role: 'rotation' }, { pos: 'RB', role: 'rotation' },
+  { pos: 'CM', role: 'rotation' }, { pos: 'LW', role: 'rotation' }, { pos: 'CF', role: 'rotation' },
+  // 🪑 Reservas (6)
+  { pos: 'GK', role: 'bench' }, { pos: 'CB', role: 'bench' }, { pos: 'LB', role: 'bench' },
+  { pos: 'DM', role: 'bench' }, { pos: 'AM', role: 'bench' }, { pos: 'RW', role: 'bench' },
+  // 🌱 Jovens (5)
+  { pos: 'ST', role: 'youth' }, { pos: 'LW', role: 'youth' }, { pos: 'CF', role: 'youth' },
+  { pos: 'CM', role: 'youth' }, { pos: 'CF', role: 'youth' },
 ];
+
+export const POSITION_TEMPLATE: Position[] = SQUAD_TEMPLATE.map((s) => s.pos);
 
 const POSITION_OFFSET: Record<Position, number> = {
   GK: 2, CB: 0.5, LB: -1, RB: -1, DM: 0.5, CM: 0.5, AM: 1, LW: 0, RW: 0, ST: 1, CF: 1,
@@ -115,7 +147,7 @@ function secondaryPositions(rng: RNG, pos: Position): Position[] {
   return out;
 }
 
-function generatePlayer(
+export function generatePlayer(
   rng: RNG,
   country: CountryData,
   club: Club,
@@ -123,15 +155,13 @@ function generatePlayer(
   pos: Position,
   idx: number,
   seasonYear: number,
+  role: SquadRole = 'starter',
+  idOverride?: string,
 ): Player {
-  const ageRoll = rng.next();
-  let age: number;
-  if (ageRoll < 0.3) age = rng.int(17, 21);
-  else if (ageRoll < 0.7) age = rng.int(22, 27);
-  else if (ageRoll < 0.93) age = rng.int(28, 33);
-  else age = rng.int(34, 38);
+  const [minAge, maxAge] = ROLE_AGE[role];
+  const age = rng.int(minAge, maxAge);
 
-  let target = clubStr + POSITION_OFFSET[pos] + rng.gaussian(0, 6);
+  let target = clubStr + POSITION_OFFSET[pos] + ROLE_DELTA[role] + rng.gaussian(0, 5);
   if (age <= 21) target -= (21 - age) * 1.6 + rng.float(0, 4);
 
   let potentialGap = 0;
@@ -198,7 +228,7 @@ function generatePlayer(
   const height = pos === 'GK' ? rng.int(186, 202) : rng.int(168, 195);
 
   return {
-    id: pid(),
+    id: idOverride ?? pid(),
     firstName,
     lastName,
     nationality: country.name,
@@ -464,7 +494,7 @@ function generateClub(
   seasonYear: number,
 ): { club: Club; clubStr: number; realRivals?: string[] } {
   const repBonus = (country.rep - 50) / 10;
-  const tierBase = tier === 1 ? 80 : tier === 2 ? 63 : 49;
+  const tierBase = tier === 1 ? 80 : tier === 2 ? 66 : tier === 3 ? 56 : 46;
   const spread = tier === 1 ? 1.1 : 0.85;
   // clube real (ex.: Série A do Brasil) — substitui o padrão gerado
   const real = country.realClubs?.[tier]?.[idx];
@@ -991,6 +1021,7 @@ export function generateWorld(seed: string, season = '2026/27'): World {
     negotiations: {},
     renewals: {},
     incomingOffers: [],
+    inquiries: [],
     pendingArrivals: [],
     playerTalks: {},
     inbox: [],
@@ -1118,16 +1149,10 @@ export function generateWorld(seed: string, season = '2026/27'): World {
       const comp = world.competitions[lid];
       for (const clubId of comp.clubIds) {
         const club = world.clubs[clubId];
-        const squadSize = 24 + rng.int(0, 3);
-        const positions = rng.shuffle(POSITION_TEMPLATE).slice(0, squadSize);
-        positions[0] = 'GK'; positions[1] = 'GK'; positions[2] = 'GK';
-        if (!positions.some((p) => p === 'CB')) positions[3] = 'CB';
-        if (!positions.some((p) => p === 'CM' || p === 'DM')) positions[6] = 'CM';
-        if (!positions.some((p) => p === 'ST' || p === 'CF')) positions[positions.length - 1] = 'ST';
-
+        // elenco padrão: 28 jogadores (3 GK / 8 DEF / 8 MID / 9 ATT) com hierarquia
         let wageSum = 0;
-        positions.forEach((pos, idx) => {
-          const p = generatePlayer(rng, cd, club, club.squadStrength, pos, idx, seasonYear);
+        SQUAD_TEMPLATE.forEach((slot, idx) => {
+          const p = generatePlayer(rng, cd, club, club.squadStrength, slot.pos, idx, seasonYear, slot.role);
           world.players[p.id] = p;
           if (p.contract) wageSum += Math.round(p.contract.wage * 4.33);
         });

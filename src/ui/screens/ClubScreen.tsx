@@ -5,6 +5,8 @@ import { allMatchesForClub, positionOf } from '../../game/competitions';
 import { formatDateBR } from '../../lib/date';
 import { fmtMoney, fmtInt } from '../../lib/format';
 import { overallOf } from '../../game/overall';
+import { squadComposition, validateSquad, SQUAD_TARGETS } from '../../game/squad';
+import type { World } from '../../lib/types';
 import { ArrowLeft } from 'lucide-react';
 
 export function ClubScreen({ clubId }: { clubId?: string }) {
@@ -49,6 +51,11 @@ export function ClubScreen({ clubId }: { clubId?: string }) {
         <StatCard label="Caixa" value={fmtMoney(club.balance)} sub={isUser ? 'Seu clube' : 'IA'} />
         <StatCard label="Valor" value={fmtMoney(club.clubValue)} />
         <StatCard label="Torcida" value={fmtInt(club.fans)} sub="milhares de torcedores" />
+      </div>
+
+      <div className="card p-5">
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">👥 Elenco — {squad.length} jogadores</p>
+        <SquadDepth clubId={id} world={world} />
       </div>
 
       <div className="grid lg:grid-cols-2 gap-5">
@@ -107,6 +114,55 @@ export function ClubScreen({ clubId }: { clubId?: string }) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function SquadDepth({ clubId, world }: { clubId: string; world: World }) {
+  const comp = squadComposition(world, clubId);
+  const report = validateSquad(world, clubId);
+  const t = SQUAD_TARGETS;
+  const groups = [
+    { label: 'Goleiros', cur: comp.GK, target: t.GK, icon: '🧤', color: 'bg-sky-500' },
+    { label: 'Defensores', cur: comp.DEF, target: t.DEF, icon: '🛡️', color: 'bg-emerald-500' },
+    { label: 'Meio-campistas', cur: comp.MID, target: t.MID, icon: '⚙️', color: 'bg-amber-500' },
+    { label: 'Atacantes', cur: comp.ATT, target: t.ATT, icon: '⚽', color: 'bg-rose-500' },
+  ];
+  return (
+    <div className="space-y-2.5">
+      {groups.map((g) => {
+        const pct = Math.min(100, Math.round((g.cur / g.target) * 100));
+        const ok = g.cur >= g.target;
+        return (
+          <div key={g.label}>
+            <div className="flex justify-between text-xs mb-1">
+              <span className="text-slate-400">{g.icon} {g.label}</span>
+              <span className={ok ? 'text-emerald-400 font-semibold' : 'text-amber-400 font-semibold'}>
+                {g.cur}/{g.target}
+              </span>
+            </div>
+            <div className="h-2 rounded-full bg-surface-800 overflow-hidden">
+              <div
+                className={`h-full rounded-full ${g.color} ${ok ? '' : 'opacity-70'}`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
+      {report.status !== 'ok' && (
+        <div className="mt-3 pt-2 border-t border-surface-700/60 space-y-1">
+          {report.issues.slice(0, 3).map((msg, i) => (
+            <p key={i} className="text-xs text-amber-400">⚠️ {msg}</p>
+          ))}
+          {comp.total > t.MAX && (
+            <p className="text-xs text-slate-400">💡 Elenco acima do ideal — considere emprestar ou vender jogadores excedentes.</p>
+          )}
+          {comp.total < t.MIN && (
+            <p className="text-xs text-slate-400">💡 Elenco abaixo do ideal — busque reforços no mercado.</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import { positionOf } from './competitions';
 import { DIFFICULTY_CONFIG } from '../lib/types';
 import { Difficulty } from '../lib/types';
 import { isVitalPlayer, squadOf } from './transfers';
+import { cancelPreContractFor } from './negotiation';
 
 let coachCounter = 0;
 
@@ -92,6 +93,8 @@ export function aiContractRenewals(world: World): void {
         p.contract.until = `${Number(world.date.slice(0, 4)) + rng.int(2, 4)}-06-30`;
         p.contract.wage = Math.round(p.contract.wage * rng.float(1.02, 1.15));
         p.happiness = clamp(p.happiness + 5, 1, 100);
+        // renovou → qualquer pré-contrato em andamento perde validade
+        cancelPreContractFor(world, null, p.id);
         refreshClubCaches(club, squadOf(world, club.id));
       }
     }

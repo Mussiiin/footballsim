@@ -3,8 +3,8 @@ import { X, Send } from 'lucide-react';
 import { useGame } from '../state/store';
 import { PlayerAvatar, PositionBadge } from './components';
 import { overallOf } from '../game/overall';
-import { activeTalkForPlayer, respondTalk, startManagerTalk, talkTopicLabel } from '../game/playerTalks';
-import { roleForPlayer } from '../game/negotiation';
+import { activeTalkForPlayer, respondTalk, startManagerTalk, startRecruitTalk, talkTopicLabel } from '../game/playerTalks';
+import { roleForPlayer, computeInterest } from '../game/negotiation';
 import type { PlayerTalk } from '../lib/types';
 
 function humorOf(p: { happiness: number; morale: number }): { emoji: string; label: string } {
@@ -33,11 +33,15 @@ export function PlayerConversationModal({ playerId, onClose }: { playerId: strin
   }, [talk?.line, talk?.result, answered]);
 
   if (!p) return null;
+  // jogador de outro clube → conversa de RECRUTAMENTO (projeto, papel, salário, interesse)
+  // jogador do meu clube → conversa de GESTÃO DO ELENCO (minutos, banco, renovação, queixas)
+  const isRecruit = p.clubId !== career!.clubId;
   const role = roleForPlayer(world, career!.clubId, p);
   const humor = humorOf(p);
+  const interest = computeInterest(world, p, career!.clubId);
 
   const start = () => {
-    setTalk(startManagerTalk(world, career!, playerId));
+    setTalk(isRecruit ? startRecruitTalk(world, career!, playerId) : startManagerTalk(world, career!, playerId));
     touch();
   };
 
@@ -50,7 +54,8 @@ export function PlayerConversationModal({ playerId, onClose }: { playerId: strin
   };
 
   const reset = () => {
-    setTalk(null);
+    // em conversas encadeadas (recrutamento), continua no próximo estágio salvo
+    setTalk(activeTalkForPlayer(world, playerId));
     setAnswered(false);
   };
 
@@ -64,7 +69,9 @@ export function PlayerConversationModal({ playerId, onClose }: { playerId: strin
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-slate-100 truncate">{p.firstName} {p.lastName}</p>
             <p className="text-[11px] text-slate-500">
-              {p.age} anos · #{p.squadNumber || '—'} · {role}
+              {isRecruit
+                ? `${p.age} anos · ${p.clubId ? (world.clubs[p.clubId]?.shortName ?? 'Agente livre') : 'Agente livre'}`
+                : `${p.age} anos · #${p.squadNumber || '—'} · ${role}`}
             </p>
           </div>
           <PositionBadge pos={p.position} />
@@ -73,22 +80,38 @@ export function PlayerConversationModal({ playerId, onClose }: { playerId: strin
           </button>
         </div>
 
-        {/* Linha de contexto: humor + overall */}
+        {/* Linha de contexto: humor/overall (elenco) ou interesse (recrutamento) */}
         <div className="flex items-center gap-2 px-4 py-2 border-b border-surface-700/40 bg-surface-900/60 text-[11px] text-slate-400">
-          <span>{humor.emoji} {humor.label}</span>
-          <span className="text-slate-600">·</span>
-          <span>{overallOf(p)} ovr · Potencial {p.potential}</span>
-          <span className="text-slate-600">·</span>
-          <span>Personalidade: {p.personality}</span>
-          <span className="ml-auto">Moral {p.morale}% · Satisfação {p.happiness}%</span>
+          {isRecruit ? (
+            <>
+              <span>🎯 Interesse: <b className="text-slate-200">{interest.level}</b> ({interest.score})</span>
+              <span className="text-slate-600">·</span>
+              <span>{overallOf(p)} ovr · Potencial {p.potential}</span>
+              <span className="text-slate-600">·</span>
+              <span>Personalidade: {p.personality}</span>
+            </>
+          ) : (
+            <>
+              <span>{humor.emoji} {humor.label}</span>
+              <span className="text-slate-600">·</span>
+              <span>{overallOf(p)} ovr · Potencial {p.potential}</span>
+              <span className="text-slate-600">·</span>
+              <span>Personalidade: {p.personality}</span>
+              <span className="ml-auto">Moral {p.morale}% · Satisfação {p.happiness}%</span>
+            </>
+          )}
         </div>
 
         {/* Balões da conversa */}
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3 min-h-[220px] max-h-[46vh]">
           {!talk ? (
             <div className="h-full flex flex-col items-center justify-center text-center py-8">
-              <p className="text-sm text-slate-400 mb-1">💬 Inicie uma conversa com {p.firstName}</p>
-              <p className="text-xs text-slate-600">Pedidos, queixas, elogios e planos — suas respostas têm consequências reais.</p>
+              <p className="text-sm text-slate-400 mb-1">💬 {isRecruit ? `Converse com ${p.firstName} sobre a transferência` : `Inicie uma conversa com ${p.firstName}`}</p>
+              <p className="text-xs text-slate-600">
+                {isRecruit
+                  ? 'Projeto do clube, papel no elenco, salário e interesse — tudo alinhado antes da proposta.'
+                  : 'Pedidos, queixas, elogios e planos — suas respostas têm consequências reais.'}
+              </p>
             </div>
           ) : (
             <>
