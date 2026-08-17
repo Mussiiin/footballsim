@@ -5,6 +5,7 @@ import { formatDateBR } from '../../lib/date';
 import { fmtMoney, fmtInt } from '../../lib/format';
 import { nextMatchForClub, lastMatchForClub, positionOf, sortedStandings, phaseForClub } from '../../game/competitions';
 import { overallOf } from '../../game/overall';
+import { objectiveImportance } from '../../game/economy';
 import { CalendarDays, ChevronRight, Users, Wallet, AlertTriangle } from 'lucide-react';
 
 export function DashboardScreen() {
@@ -277,13 +278,21 @@ export function DashboardScreen() {
             <div className="card p-5">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Objetivos da diretoria</p>
               <ul className="space-y-2">
-                {club.objectives.map((o, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm">
-                    <span>{o.status === 'achieved' ? '✅' : o.status === 'failed' ? '❌' : '🎯'}</span>
-                    <span className={o.status === 'achieved' ? 'text-accent' : o.status === 'failed' ? 'text-red-400 line-through' : 'text-slate-300'}>{o.text}</span>
-                    <span className="ml-auto text-[10px] text-slate-600">{'★'.repeat(o.weight)}</span>
-                  </li>
-                ))}
+                {club.objectives.map((o, i) => {
+                  const imp = objectiveImportance(o.weight);
+                  return (
+                    <li key={i} className="flex items-start gap-2 text-sm">
+                      <span>{o.status === 'achieved' ? '✅' : o.status === 'failed' ? '❌' : '🎯'}</span>
+                      <div className="min-w-0 flex-1">
+                        <span className={o.status === 'achieved' ? 'text-accent' : o.status === 'failed' ? 'text-red-400 line-through' : 'text-slate-300'}>{o.text}</span>
+                        <div className="mt-0.5 flex items-center gap-2">
+                          <span className={`rounded-full border px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide ${imp.cls}`}>{imp.label}</span>
+                          <span className="text-[10px] text-slate-600">{'★'.repeat(o.weight)}</span>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
               <div className="mt-3 pt-3 border-t border-surface-700/60">
                 <div className="flex justify-between text-xs mb-1">

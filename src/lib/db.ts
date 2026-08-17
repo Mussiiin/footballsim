@@ -5,6 +5,7 @@ import { Career, Settings, SeasonStats, PlayerHistoryEntry, RecruitmentOfficer }
 import { allocateSectorSeats } from '../game/stadium';
 import { balanceAllSquads } from '../game/squad';
 import { estimateWage, overallOf } from '../game/overall';
+import { recalcClubFinances, generateBoardObjectives } from '../game/economy';
 import { hashString } from './rng';
 import { addDays } from './date';
 
@@ -233,6 +234,19 @@ function migrateCareer(c: Career): Career {
   } catch (e) {
     // nunca impede o carregamento do save
     console.warn('balanceAllSquads falhou na migração', e);
+  }
+  // economia por DIVISÃO + TAMANHO (novo sistema): recalcula finanças e objetivos
+  // UMA única vez para saves criados antes do modelo — não repete a cada carregamento
+  const needsEconomy = Object.values(w.clubs).some((cl: any) => typeof cl.expectedMonthlyIncome !== 'number');
+  if (needsEconomy) {
+    try {
+      for (const cl of Object.values(w.clubs) as any[]) {
+        recalcClubFinances(w as any, cl, w.seed);
+        cl.objectives = generateBoardObjectives(w as any, cl, w.seed);
+      }
+    } catch (e) {
+      console.warn('economia falhou na migração', e);
+    }
   }
   return c;
 }

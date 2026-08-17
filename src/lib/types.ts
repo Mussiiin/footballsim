@@ -331,6 +331,12 @@ export interface Club {
   balance: number;         // saldo financeiro
   clubValue: number;
   wageBill: number;        // folha salarial mensal
+  /** Dívida do clube (R$). */
+  debt: number;
+  /** Receita mensal esperada (R$) — para o painel de finanças. */
+  expectedMonthlyIncome: number;
+  /** Despesa mensal esperada (R$). */
+  expectedMonthlyExpenses: number;
   facilities: { training: number; youth: number; medical: number; commercial: number }; // 1-100
   leagueId: string;
   coach: Coach;

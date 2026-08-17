@@ -16,6 +16,16 @@ export function FinancesScreen() {
   const sponsor = monthlySponsorship(club);
   const monthlyCost = club.wageBill + staffCost + club.stadium.maintenanceCost + Math.round(club.wageBill * 0.06);
 
+  // situação financeira: saudável / atenção / crítica (caixa × dívida)
+  const debt = club.debt ?? 0;
+  const situation = (() => {
+    if (club.balance < 0 || debt > club.balance * 1.5) return { label: '⚠️ Crítica', cls: 'bg-red-500/10 text-red-400' };
+    if (debt > club.balance * 0.6) return { label: '🟡 Atenção', cls: 'bg-gold/10 text-gold' };
+    return { label: '✅ Saudável', cls: 'bg-emerald-500/10 text-emerald-400' };
+  })();
+  const income = club.expectedMonthlyIncome ?? 0;
+  const expenses = club.expectedMonthlyExpenses ?? 0;
+
   const chart = useMemo(() => {
     const data = club.financeHistory.slice(-24).map((h) => ({
       name: h.month.slice(5),
@@ -39,11 +49,26 @@ export function FinancesScreen() {
         <p className="text-sm text-slate-500">{club.name} · Temporada {world.season}</p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Caixa" value={fmtMoney(club.balance)} sub={club.balance < 0 ? '⚠️ Endividado' : 'Situação saudável'} accent={club.balance < 0 ? 'bg-red-500/10 text-red-400' : 'bg-gold/10 text-gold'} />
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <StatCard label="Caixa" value={fmtMoney(club.balance)} sub={situation.label} accent={situation.cls} />
         <StatCard label="Orçamento" value={fmtMoney(club.budget)} sub="Para transferências" />
-        <StatCard label="Folha salarial" value={fmtMoney(club.wageBill)} sub={`${squad.length} jogadores`} />
+        <StatCard label="Folha salarial" value={fmtMoney(club.wageBill)} sub={`${squad.length} jogadores/mês`} />
+        <StatCard label="Dívidas" value={fmtMoney(debt)} sub={debt > 0 ? 'A comprometer o caixa' : 'Sem dívidas'} accent={debt > club.balance * 0.6 ? 'bg-red-500/10 text-red-400' : 'bg-surface-700/50 text-slate-300'} />
         <StatCard label="Valor do clube" value={fmtMoney(club.clubValue)} sub={`${club.tier}`} />
+        <StatCard label="Saldo mensal" value={fmtMoney(income - expenses)} sub="Receita − despesas previstas" />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="card p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">📈 Receita prevista/mês</p>
+          <p className="font-display font-bold text-xl text-emerald-400">{fmtMoney(income)}</p>
+          <p className="text-[11px] text-slate-500">TV + patrocínio + bilheteria esperados</p>
+        </div>
+        <div className="card p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">📉 Despesas previstas/mês</p>
+          <p className="font-display font-bold text-xl text-red-400">{fmtMoney(expenses)}</p>
+          <p className="text-[11px] text-slate-500">Folha + comissão + estádio + bônus</p>
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-5">

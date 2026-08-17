@@ -13,6 +13,7 @@ import { isVitalPlayer, squadOf } from './transfers';
 import { balanceAllSquads } from './squad';
 import { resetMatchCounter, leagueFixtures, cupFixtures, continentalFixtures, serieDFixtures } from './worldgen';
 import { stadiumSeasonReset } from './stadium';
+import { recalcClubFinances, generateBoardObjectives } from './economy';
 
 function nextSeason(season: string): string {
   const y = Number(season.slice(0, 4));
@@ -509,6 +510,12 @@ export function startNextSeason(world: World, career: Career | null, difficulty:
   for (const r of summary.promoted) {
     const club = world.clubs[r.clubId];
     if (club) club.leagueId = r.to;
+  }
+  // economia da nova temporada: finanças e objetivos recalculados pela DIVISÃO real
+  // (um clube promovido/rebaixado ganha/perde escala gradualmente, sem saltos absurdos)
+  for (const club of Object.values(world.clubs)) {
+    recalcClubFinances(world, club, world.seed);
+    club.objectives = generateBoardObjectives(world, club, world.seed);
   }
   // recalcula clubIds das ligas APÓS as mudanças (fonte da verdade)
   for (const country of world.countries) {

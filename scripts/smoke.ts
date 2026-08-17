@@ -17,6 +17,7 @@ import { RNG, hashString } from '../src/lib/rng';
 import { addDays } from '../src/lib/date';
 import { sortedStandings, nextMatchForClub, allMatchesForClub } from '../src/game/competitions';
 import { overallOf } from '../src/game/overall';
+import { clubSize } from '../src/game/economy';
 import { Career, Match } from '../src/lib/types';
 // `process` é global no Node; tipos vêm de @types/node
 
@@ -63,6 +64,38 @@ check('overall médio entre 40 e 70', avgOv > 40 && avgOv < 70);
 const top = [...allPlayers].sort((a, b) => overallOf(b) - overallOf(a))[0];
 console.log(`  Melhor jogador: ${top.firstName} ${top.lastName} (${overallOf(top)}) — ${world.clubs[top.clubId ?? '']?.name ?? 'livre'}`);
 check('existem jogadores 80+', overallOf(top) >= 80);
+
+// ---- economia por divisão (novo sistema) ----
+{
+  const medCash = (tier: number) => {
+    const comp = world.competitions[`brazil_L${tier}`];
+    const vals = comp.clubIds.map((id) => world.clubs[id].balance).sort((a, b) => a - b);
+    return vals[Math.floor(vals.length / 2)];
+  };
+  check('Série A mais rica que Série D (caixa mediano)', medCash(1) > medCash(4) * 8, `(A ${medCash(1).toLocaleString()} vs D ${medCash(4).toLocaleString()})`);
+  check('Série B mais rica que Série D (caixa mediano)', medCash(2) > medCash(4) * 3);
+  check('Série C mais rica que Série D (caixa mediano)', medCash(3) > medCash(4));
+  // todos os clubes com os novos campos de economia
+  const allClubs = Object.values(world.clubs);
+  check('todos os clubes com dívida definida', allClubs.every((c: any) => typeof c.debt === 'number'));
+  check('todos os clubes com receita/despesa prevista', allClubs.every((c: any) => typeof c.expectedMonthlyIncome === 'number' && typeof c.expectedMonthlyExpenses === 'number'));
+  // Série D: nenhum objetivo absurdo (continental/título nacional)
+  const l4 = world.competitions['brazil_L4'];
+  let absurdD = 0;
+  for (const cid of l4.clubIds) {
+    for (const o of world.clubs[cid].objectives) {
+      if (/continental|libertadores|vencer a copa nacional/i.test(o.text)) absurdD++;
+    }
+  }
+  check('Série D sem objetivos de continental/copa', absurdD === 0, `(${absurdD} absurdos)`);
+  // Série D tem clubes pequenos (escala da divisão respeitada)
+  const repRange = (() => {
+    const reps = l4.clubIds.map((id) => world.clubs[id].reputation);
+    return [Math.min(...reps), Math.max(...reps)] as [number, number];
+  })();
+  const smallCount = l4.clubIds.filter((id) => clubSize(world.clubs[id], repRange) <= 2).length;
+  check('Série D com clubes pequenos/médios (≤2)', smallCount > 10, `(${smallCount} de ${l4.clubIds.length})`);
+}
 
 // carreira
 console.log('👤 Criando carreira...');

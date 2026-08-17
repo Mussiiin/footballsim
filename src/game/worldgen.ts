@@ -10,6 +10,7 @@ import { RNG } from '../lib/rng';
 import { COUNTRIES, CountryData, CONTINENTAL_COMPETITION } from './names';
 import { overallAt, estimateValue, estimateWage } from './overall';
 import { generateYouthIntake } from './development';
+import { recalcClubFinances, generateBoardObjectives } from './economy';
 import { addDays, toDateStr } from '../lib/date';
 import { clamp } from '../lib/format';
 
@@ -318,38 +319,6 @@ function generateStaff(rng: RNG, country: CountryData, clubRep: number, seasonYe
   }));
 }
 
-function objectivesFor(tier: ClubTier): ClubObjective[] {
-  const base: ClubObjective[] = [];
-  const add = (text: string, weight: number, kind: ClubObjective['kind']) => base.push({ text, weight, kind, status: 'pending' });
-  switch (tier) {
-    case 'Gigante':
-      add('Vencer a liga nacional', 10, 'trophy');
-      add('Avançar na competição continental', 8, 'continental');
-      add('Chegar à final da copa nacional', 7, 'cup-run');
-      break;
-    case 'Grande':
-      add('Classificar-se para a competição continental', 9, 'continental');
-      add('Terminar entre os 6 primeiros', 7, 'league');
-      add('Vencer a copa nacional', 6, 'cup-run');
-      break;
-    case 'Médio':
-      add('Terminar na metade superior da tabela', 7, 'mid-table');
-      add('Disputar classificação continental', 7, 'continental');
-      add('Equilibrar as finanças', 5, 'finances');
-      break;
-    case 'Pequeno':
-      add('Evitar o rebaixamento', 9, 'avoid-relegation');
-      add('Equilibrar as finanças', 7, 'finances');
-      add('Vender jogadores com lucro', 6, 'finances');
-      break;
-    default:
-      add('Sobreviver na divisão', 9, 'avoid-relegation');
-      add('Equilibrar as finanças', 8, 'finances');
-      add('Desenvolver jovens da base', 6, 'develop-youth');
-  }
-  return base;
-}
-
 /** Estádio com nome e capacidade reais (ex.: Maracanã). */
 function stadiumNamed(name: string, capacity: number, rep: number, tier: ClubTier): Stadium {
   const occupancy = clamp(rep / 100 + 0.2, 0.6, 0.98);
@@ -518,15 +487,6 @@ function generateClub(
     .filter((w) => !['FC', 'AC', 'SC', 'SV', 'AS', 'NK', 'OFK', 'FK', 'US', 'CD', 'AD', 'TSV', 'RC', 'ES', 'SG', 'VfB'].includes(w))
     .join(' ') || name);
 
-  const balance: Record<ClubTier, [number, number]> = {
-    Gigante: [80_000_000, 160_000_000],
-    Grande: [35_000_000, 80_000_000],
-    Médio: [12_000_000, 35_000_000],
-    Pequeno: [3_000_000, 12_000_000],
-    Amador: [300_000, 3_000_000],
-  };
-  const [bmin, bmax] = balance[tierLbl];
-  const balanceAmt = rng.int(bmin, bmax);
   const stadium = real
     ? stadiumNamed(real.stadium, real.capacity, clamp(rep, 40, 95), tierLbl)
     : stadiumFor(tierLbl, rng, city, rng.pick(country.stadiumSuffixes).replace('{city}', city));
@@ -543,9 +503,12 @@ function generateClub(
     reputation: rep,
     tier: tierLbl,
     colors: rng.pick(COLOR_PAIRS),
-    budget: Math.round(balanceAmt * rng.float(0.35, 0.6)),
-    balance: balanceAmt,
-    clubValue: balanceAmt * rng.int(6, 12) + Math.round(stadium.capacity * 1200),
+    budget: 0,
+    balance: 0,
+    clubValue: 0,
+    debt: 0,
+    expectedMonthlyIncome: 0,
+    expectedMonthlyExpenses: 0,
     wageBill: 0,
     facilities: {
       training: clamp(Math.round(facilitiesBase * rng.float(0.8, 1.1)), 10, 99),
@@ -556,7 +519,7 @@ function generateClub(
     leagueId,
     coach: generateCoach(rng, country, rep),
     staff: generateStaff(rng, country, rep, seasonYear),
-    objectives: objectivesFor(tierLbl),
+    objectives: [],
     boardPatience: rng.int(55, 85),
     fanTrust: rng.int(55, 85),
     boardMessage: null,
@@ -1378,6 +1341,13 @@ export function generateWorld(seed: string, season = '2026/27'): World {
   // categorias de base: cada clube começa com jovens promessas na base
   for (const club of Object.values(world.clubs)) {
     world.youth[club.id] = generateYouthIntake(world, club.id);
+  }
+
+  // economia real por DIVISÃO + TAMANHO (substitui a geração fixa por tier):
+  // precisa rodar depois dos jogadores (valor do elenco e OVR médio entram no cálculo)
+  for (const club of Object.values(world.clubs)) {
+    recalcClubFinances(world, club, seed);
+    club.objectives = generateBoardObjectives(world, club, seed);
   }
 
   // calendário

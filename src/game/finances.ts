@@ -3,10 +3,11 @@ import { clamp } from '../lib/format';
 
 export function monthlyTvMoney(club: Club): number {
   const div = club.leagueId.split('_').pop();
-  const tier = div === 'L1' ? 1 : div === 'L2' ? 2 : 3;
-  if (tier === 1) return Math.round(400_000 + club.reputation * 38_000);
-  if (tier === 2) return Math.round(90_000 + club.reputation * 6_000);
-  return Math.round(25_000 + club.reputation * 1_500);
+  if (div === 'L1') return Math.round(400_000 + club.reputation * 38_000);
+  if (div === 'L2') return Math.round(90_000 + club.reputation * 6_000);
+  if (div === 'L3') return Math.round(30_000 + club.reputation * 2_200);
+  // Série D — receita de TV mínima, coerente com a escala da divisão
+  return Math.round(8_000 + club.reputation * 600);
 }
 
 export function monthlySponsorship(club: Club): number {
