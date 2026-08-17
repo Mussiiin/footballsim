@@ -7,7 +7,7 @@ import { Player, POSITION_GROUPS } from '../../lib/types';
 import {
   marketAnalysis, computeInterest, latestReport, officerAdvice,
   negotiationForPlayer, negotiationStatusLabel, roleForPlayer, estimateFormLabel,
-  injuryDaysTotal, isEligibleForPreContract,
+  injuryDaysTotal, isEligibleForPreContract, contractStatusOf, contractTimeLeftLabel,
 } from '../../game/negotiation';
 import { squadOf } from '../../game/transfers';
 import { NegotiationKind } from '../../game/negotiation';
@@ -82,7 +82,20 @@ export function PlayerMarketModal({ player, onClose, readOnly = false }: { playe
           <div className="text-right text-xs text-slate-500 space-y-0.5">
             <p>Potencial: <span className="text-slate-200 font-semibold">{player.potential}</span></p>
             <p>Reputação: <span className="text-slate-200 font-semibold">{player.reputation}</span></p>
-            <p>Contrato até: <span className="text-slate-300">{player.contract ? player.contract.until : 'livre'}</span></p>
+            {player.contract ? (
+              <>
+                <p className="flex items-center justify-end gap-1.5">
+                  <span>Contrato até:</span>
+                  <span className="text-slate-300">{player.contract.until}</span>
+                </p>
+                <p className="text-[11px] text-slate-500">{contractTimeLeftLabel(player, world.date)}</p>
+                {(() => { const cs = contractStatusOf(player, world.date); return cs ? (
+                  <p className={`badge border text-[10px] ${cs.color} ${cs.status === 'elegivel' ? 'border-red-500/40 bg-red-500/10' : cs.status === 'aproximando' ? 'border-gold/40 bg-gold/10' : cs.status === 'encerrado' ? 'border-slate-600/50 bg-slate-700/20' : 'border-accent/40 bg-accent/10'}`}>{cs.emoji} {cs.label}</p>
+                ) : null; })()}
+              </>
+            ) : (
+              <p className="badge border border-accent/40 bg-accent/10 text-accent text-[10px]">🆓 Agente livre</p>
+            )}
             <p>Salário: <span className="text-gold font-semibold">{fmtMoney(player.contract?.wage ?? 0)}/sem</span></p>
             {player.contract?.releaseClause ? <p>Cláusula: <span className="text-gold">{fmtMoney(player.contract.releaseClause)}</span></p> : null}
           </div>

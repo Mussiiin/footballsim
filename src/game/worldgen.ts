@@ -209,20 +209,24 @@ export function generatePlayer(
   const ov = computeOv();
   const potential = clamp(Math.round(ov + potentialGap), 1, 99);
   const reputation = playerReputation(ov, club.reputation);
-  const contractYears = rng.int(0, 4);
+  // Contrato individual com distribuição realista de fim de vínculo.
+  // Sempre termina em 30/06 de uma temporada futura — nunca expira na criação.
+  // 10% terminam na temporada atual · 20% em +1 · 25% em +2 · 25% em +3 · 15% em +4 · 5% em +5 ou mais.
+  const roll = rng.float(0, 1);
+  const seasonsLeft = roll < 0.10 ? 1 : roll < 0.30 ? 2 : roll < 0.55 ? 3 : roll < 0.80 ? 4 : roll < 0.95 ? 5 : 6;
   const today = `${seasonYear}-07-01`;
+  const until = `${seasonYear + seasonsLeft}-06-30`;
+  // início do contrato: plausível (60–600 dias atrás), sempre antes do fim
+  const maxSignedAgo = Math.max(90, Math.min(600, Math.round(seasonsLeft * 365 * 0.7)));
   const contract: Contract = {
-    signedAt: addDays(today, -rng.int(30, 800)),
-    until: addDays(today, contractYears * 365 + rng.int(-60, 120)),
+    signedAt: addDays(today, -rng.int(60, maxSignedAgo)),
+    until,
     wage: estimateWage(ov, age, reputation),
     bonus: rng.chance(0.4) ? estimateWage(ov, age, reputation) * rng.int(4, 15) : 0,
     releaseClause: rng.chance(0.2)
       ? Math.round(estimateValue(ov, age, potential, reputation, 2) * rng.float(1.3, 2))
       : null,
   };
-  if (contractYears === 0 && rng.chance(0.7)) {
-    contract.until = addDays(today, rng.int(150, 330)); // expira no fim da temporada
-  }
 
   const birthDate = addDays(today, -Math.round(age * 365.25 + rng.int(0, 360)));
   const height = pos === 'GK' ? rng.int(186, 202) : rng.int(168, 195);
@@ -241,7 +245,7 @@ export function generatePlayer(
     weight: Math.round(height - 100 + rng.gaussian(2, 3)),
     attrs,
     potential,
-    value: estimateValue(ov, age, potential, reputation, contractYears || 0.5),
+    value: estimateValue(ov, age, potential, reputation, seasonsLeft),
     contract,
     clubId: club.id,
     squadNumber: idx + 1,

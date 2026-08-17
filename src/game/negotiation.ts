@@ -11,7 +11,7 @@ import {
   MarketHighlight, MarketHighlightKind, SaleReport,
 } from '../lib/types';
 import { RNG, hashString } from '../lib/rng';
-import { overallOf, refreshClubCaches } from './overall';
+import { overallOf, refreshClubCaches, estimateWage } from './overall';
 import { clamp, fmtMoney } from '../lib/format';
 import { addDays, daysBetween } from '../lib/date';
 import { sellingPrice, executeTransfer, isVitalPlayer, squadOf, freeAgents } from './transfers';
@@ -457,6 +457,50 @@ export function isEligibleForPreContract(player: Player, currentGameDate: string
     return false;
   }
   return true;
+}
+
+// ------------------------------------------------------------
+// Status do contrato individual (computado a partir da data real)
+// ------------------------------------------------------------
+export interface ContractStatusInfo {
+  status: 'ativo' | 'aproximando' | 'elegivel' | 'encerrado';
+  label: string;
+  emoji: string;
+  color: string;
+  daysLeft: number;
+  monthsLeft: number;
+}
+
+export function contractStatusOf(player: Player, currentGameDate: string): ContractStatusInfo | null {
+  const until = player.contract?.until;
+  if (!until) return null; // sem contrato (agente livre)
+  const daysLeft = daysBetween(currentGameDate, until);
+  const monthsLeft = Math.max(0, Math.floor(daysLeft / 30));
+  if (daysLeft <= 0) {
+    return { status: 'encerrado', label: 'Contrato encerrado', emoji: '⚫', color: 'text-slate-400', daysLeft, monthsLeft };
+  }
+  if (daysLeft <= PRE_CONTRACT_DAYS) {
+    return { status: 'elegivel', label: 'Elegível para pré-contrato', emoji: '🔴', color: 'text-red-400', daysLeft, monthsLeft };
+  }
+  if (daysLeft <= 365) {
+    return { status: 'aproximando', label: 'Contrato se aproximando do fim', emoji: '🟡', color: 'text-gold', daysLeft, monthsLeft };
+  }
+  return { status: 'ativo', label: 'Contrato ativo', emoji: '🟢', color: 'text-accent', daysLeft, monthsLeft };
+}
+
+/** Texto amigável de quanto falta para o fim do contrato. */
+export function contractTimeLeftLabel(player: Player, currentGameDate: string): string {
+  const until = player.contract?.until;
+  if (!until) return 'Agente livre — sem contrato';
+  const daysLeft = daysBetween(currentGameDate, until);
+  if (daysLeft <= 0) return '⚫ Contrato encerrado';
+  if (daysLeft <= PRE_CONTRACT_DAYS) return '📝 Elegível para pré-contrato';
+  const months = Math.floor(daysLeft / 30);
+  if (months < 12) return `⏳ ${months} ${months === 1 ? 'mês' : 'meses'} restantes`;
+  const years = Math.floor(months / 12);
+  const rem = months % 12;
+  if (rem === 0) return `⏳ ${years} ${years === 1 ? 'ano' : 'anos'} restantes`;
+  return `⏳ ${years} ${years === 1 ? 'ano' : 'anos'} e ${rem} ${rem === 1 ? 'mês' : 'meses'} restantes`;
 }
 
 // ------------------------------------------------------------
@@ -1776,7 +1820,11 @@ export function aiMarketDeals(world: World, career: Career | null, rng: RNG, cou
       const price = sellingPrice(world, target, world.clubs[target.clubId!]);
       const fee = Math.round(price * rng.float(1.0, 1.18));
       if (price > 0 && club.balance > fee * 1.25) {
-        const wage = Math.round((target.contract?.wage ?? 800) * rng.float(1.05, 1.2));
+        // teto de salário: impede que revendas repetidas componham o salário sem limite
+        const wage = Math.round(Math.min(
+          (target.contract?.wage ?? 800) * rng.float(1.05, 1.2),
+          estimateWage(overallOf(target), target.age, target.reputation) * 3,
+        ));
         executeTransfer(world, career, {
           playerId: target.id, fee, wage, toClubId: club.id, fromClubId: target.clubId, type: 'transfer',
         });
@@ -1792,7 +1840,11 @@ export function aiMarketDeals(world: World, career: Career | null, rng: RNG, cou
       const price = sellingPrice(world, target, world.clubs[target.clubId!]);
       const fee = Math.round(price * rng.float(0.9, 1.05));
       if (price > 0 && club.balance > fee * 1.3) {
-        const wage = Math.round((target.contract?.wage ?? 600) * rng.float(1.0, 1.12));
+        // teto de salário: impede composição infinita em revendas repetidas
+        const wage = Math.round(Math.min(
+          (target.contract?.wage ?? 600) * rng.float(1.0, 1.12),
+          estimateWage(overallOf(target), target.age, target.reputation) * 2.2,
+        ));
         executeTransfer(world, career, {
           playerId: target.id, fee, wage, toClubId: club.id, fromClubId: target.clubId, type: 'transfer',
         });

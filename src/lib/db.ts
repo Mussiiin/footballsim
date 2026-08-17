@@ -4,6 +4,8 @@
 import { Career, Settings, SeasonStats, PlayerHistoryEntry, RecruitmentOfficer } from './types';
 import { allocateSectorSeats } from '../game/stadium';
 import { balanceAllSquads } from '../game/squad';
+import { estimateWage, overallOf } from '../game/overall';
+import { hashString } from './rng';
 import { addDays } from './date';
 
 // ------------------------------------------------------------
@@ -185,6 +187,25 @@ function migrateCareer(c: Career): Career {
         shotsOnTarget: h.shotsOnTarget ?? 0, passes: h.passes ?? 0, tackles: h.tackles ?? 0,
         interceptions: h.interceptions ?? 0, keyPasses: h.keyPasses ?? 0, xg: h.xg ?? 0, xa: h.xa ?? 0,
       }));
+    }
+    // Contratos individuais: todo jogador com clube precisa de contrato válido e persistido.
+    // Saves antigos sem contrato (ou com contrato quebrado) ganham um vínculo real.
+    if (p.clubId && p.status === 'active') {
+      const curUntil = p.contract?.until;
+      const hasValid = typeof curUntil === 'string' && curUntil >= '2000-01-01' && curUntil > w.date;
+      if (!p.contract || !hasValid) {
+        const yr = Number(String(w.season ?? '2026').slice(0, 4) || 2026);
+        const extra = Math.abs(hashString(p.id)) % 3; // 2–4 temporadas, determinístico
+        p.contract = {
+          signedAt: addDays(w.date, -90),
+          until: `${yr + 2 + extra}-06-30`,
+          wage: estimateWage(overallOf(p), p.age, p.reputation ?? 20),
+          bonus: 0,
+          releaseClause: null,
+        };
+      } else if (p.contract.wage == null || !(p.contract.wage > 0)) {
+        p.contract.wage = estimateWage(overallOf(p), p.age, p.reputation ?? 20);
+      }
     }
   }
 

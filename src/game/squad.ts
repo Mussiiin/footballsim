@@ -128,6 +128,40 @@ export function validateAllSquads(world: World): SquadReport[] {
   return Object.values(world.clubs).map((c) => validateSquad(world, c.id));
 }
 
+// ------------------------------------------------------------
+// Contratos individuais
+// ------------------------------------------------------------
+export interface ContractValidationReport {
+  total: number;          // jogadores ativos com clube
+  ok: number;
+  noContract: number;     // sem contrato
+  noUntil: number;        // contrato sem data de término
+  expired: number;        // contrato já encerrado (until < data atual)
+  invalidWage: number;    // salário ausente/<= 0
+  wrongClub: number;      // contrato aponta para clube diferente do atual
+  issues: string[];
+}
+
+export function validatePlayerContracts(world: World, sample = Infinity): ContractValidationReport {
+  const report: ContractValidationReport = {
+    total: 0, ok: 0, noContract: 0, noUntil: 0, expired: 0, invalidWage: 0, wrongClub: 0, issues: [],
+  };
+  let count = 0;
+  for (const p of Object.values(world.players)) {
+    if (p.status !== 'active' || !p.clubId) continue;
+    if (count >= sample) break;
+    count++;
+    report.total++;
+    if (!p.contract) { report.noContract++; report.issues.push(`${p.id} sem contrato`); continue; }
+    if (!p.contract.until) { report.noUntil++; report.issues.push(`${p.id} sem data de término`); continue; }
+    if (p.contract.until <= world.date) report.expired++;
+    if (!(p.contract.wage > 0)) report.invalidWage++;
+    // o vínculo real é player.clubId (a estrutura atual não duplica clubId no contrato)
+    report.ok++;
+  }
+  return report;
+}
+
 // posição mais carente dentro de um grupo
 function missingPositionsFor(comp: SquadComposition, group: 'GK' | 'DEF' | 'MID' | 'ATT', n: number): Position[] {
   if (group === 'GK') return ['GK'];

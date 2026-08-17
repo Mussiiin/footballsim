@@ -62,7 +62,8 @@ export function TransfersScreen({ initialTab }: { initialTab?: string }) {
   const candidates = useMemo(() => {
     let list = players.filter((p) => p.clubId !== career!.clubId);
     if (scope === 'market') {
-      list = list.filter((p) => !p.clubId || p.transferListed || p.loanListed || isEligibleForPreContract(p, world.date));
+      // Mercado mostra todos os jogadores negociáveis (fora do nosso clube).
+      // O tag "Expira" diferencia os poucos realmente no período final do contrato.
     } else if (scope === 'free') {
       list = list.filter((p) => !p.clubId);
     } else if (scope === 'loan') {
