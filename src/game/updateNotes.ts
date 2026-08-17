@@ -34,13 +34,28 @@ export interface UpdateNoteVersion {
 }
 
 /** Versão do build atual do jogo (a mais recente disponível). */
-export const GAME_VERSION = '1.8.10';
+export const GAME_VERSION = '1.8.11';
 
 /** Versão "instalada" padrão de quem nunca passou por uma atualização. */
 const DEFAULT_APPLIED_VERSION = '1.4.2';
 
 /** Histórico completo de versões (mais recente primeiro). */
 export const UPDATE_HISTORY: UpdateNoteVersion[] = [
+  {
+    version: '1.8.11',
+    title: 'Publicação',
+    date: '17/08/2026',
+    required: false,
+    newFeatures: [
+      { title: 'Publicação', description: 'scripts/publish.mjs: Sistema de publicação' },
+    ],
+    improvements: [
+    ],
+    bugFixes: [
+    ],
+    football: [
+    ],
+  },
   {
     version: '1.8.10',
     title: 'Publicação, Central de mensagens',
