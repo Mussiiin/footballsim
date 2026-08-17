@@ -34,13 +34,31 @@ export interface UpdateNoteVersion {
 }
 
 /** Versão do build atual do jogo (a mais recente disponível). */
-export const GAME_VERSION = '1.8.0';
+export const GAME_VERSION = '1.8.1';
 
 /** Versão "instalada" padrão de quem nunca passou por uma atualização. */
 const DEFAULT_APPLIED_VERSION = '1.4.2';
 
 /** Histórico completo de versões (mais recente primeiro). */
 export const UPDATE_HISTORY: UpdateNoteVersion[] = [
+  {
+    version: '1.8.1',
+    title: 'Campeonato Brasileiro Série D 2026 completo · correções: Rótulos Casa/',
+    date: '17/08/2026',
+    required: false,
+    newFeatures: [
+      { title: 'Campeonato Brasileiro Série D 2026 completo', description: '- 96 clubes reais da Série D em 16 grupos de 6, 10 rodadas (ida+volta) - Mata-mata de 64 em ida/volta com agregado + pênaltis, 4 vencedores das quartas + 2 dos playoffs de acesso p' },
+      { title: 'Sistema real de contratos individuais', description: '- worldgen: contratos com distribuição ponderada (10/20/25/25/15/5), terminando em 30/06, sem expirados na criação e com signedAt válido - UI: perfil mostra status do contrato (🟢 ' },
+    ],
+    improvements: [
+    ],
+    bugFixes: [
+      { title: 'Rótulos Casa/Fora invertidos', description: 'Os badges descreviam o status do usuário em vez do mando de campo de cada time — quando o usuário jogava fora, seu time aparecia com "🏠 Casa". Agora o badge de cada equipe reflete o mando real (mandante 🏠 Casa, visitante ✈️ Fora) no Painel, no Dia de Jogo e nas Competições.' },
+      { title: 'Forma atual mostra "Temporada ainda não começou" quando não h…', description: '' },
+    ],
+    football: [
+    ],
+  },
   {
     version: '1.8.0',
     title: 'Recrutamento, pré-contrato, sondagens e elencos',
