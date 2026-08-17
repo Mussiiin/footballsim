@@ -276,6 +276,43 @@ export interface FinanceEntry {
   balance: number;    // saldo ao fim do mês
 }
 
+/** Transação financeira individual (premiação, venda, compra etc.). */
+export interface FinanceTransaction {
+  /** id único (evita duplicação de premiação). */
+  id: string;
+  date: string;       // YYYY-MM-DD
+  type: 'competition_prize' | 'sale' | 'purchase' | 'other';
+  competition?: string;   // nome da competição
+  competitionId?: string;
+  season?: string;
+  stage?: string;         // fase (ex.: 'Oitavas de final')
+  description: string;
+  /** valor positivo = receita, negativo = despesa. */
+  amount: number;
+}
+
+/**
+ * Regras de premiação de uma competição por temporada (centralizadas p/ ajuste futuro).
+ * Fases com cota por categoria (A/B) do clube usam { tierA, tierB }.
+ */
+export interface CompetitionPrizeRules {
+  competition: string; // id da competição
+  competitionName: string;
+  season: string;
+  prizes: {
+    firstRound?: number;                        // 1ª fase
+    secondRound?: { tierA: number; tierB: number };
+    thirdRound?: { tierA: number; tierB: number };
+    fourthRound?: { tierA: number; tierB: number };
+    fifthRound?: number;                        // 5ª fase
+    roundOf16?: number;                         // Oitavas de final
+    quarterFinal?: number;                      // Quartas de final
+    semiFinal?: number;                         // Semifinal
+    runnerUp?: number;                          // Final — vice-campeão
+    champion?: number;                          // Final — campeão
+  };
+}
+
 export interface Club {
   id: string;
   name: string;
@@ -305,6 +342,10 @@ export interface Club {
   titles: { competitionId: string; competitionName: string; season: string }[];
   lastResults: ('W' | 'D' | 'L')[];
   financeHistory: FinanceEntry[];
+  /** Transações financeiras individuais (premiações etc.), mais recentes primeiro. */
+  financeTransactions: FinanceTransaction[];
+  /** Ids únicos de premiação já recebidos (ex.: CDB-2026-FLAMENGO-OITAVAS) — evita pagamento duplicado. */
+  competitionPrizes: string[];
   lastSeasonPosition: number | null;
   /** snapshot da classificação final da temporada anterior (para comparação no resumo). */
   lastSeason?: { season: string; position: number; points: number; gf: number; ga: number } | null;
@@ -431,7 +472,7 @@ export interface PlayerTalk {
   initiatedBy: 'player' | 'manager';
 }
 
-export type InboxCategory = 'transfer' | 'squad' | 'contract' | 'board';
+export type InboxCategory = 'transfer' | 'squad' | 'contract' | 'board' | 'finance';
 export type InboxPriority = 'low' | 'normal' | 'important' | 'urgent';
 
 /** Mensagem na Central de Mensagens (caixa de entrada do treinador). */
@@ -966,6 +1007,8 @@ export interface World {
   inbox: InboxMessage[];
   /** Histórico permanente de conversas com jogadores. */
   talkHistory: TalkHistoryEntry[];
+  /** Regras de premiação por competição (centralizadas, ajustáveis por temporada). */
+  competitionPrizeRules: Record<string, CompetitionPrizeRules>;
 }
 
 export type MatchRef =

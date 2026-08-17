@@ -13,6 +13,7 @@ export const CATEGORY_LABELS: Record<InboxCategory, string> = {
   squad: 'Elenco',
   contract: 'Contratos',
   board: 'Diretoria',
+  finance: 'Finanças',
 };
 
 export const PRIORITY_LABELS: Record<InboxPriority, string> = {

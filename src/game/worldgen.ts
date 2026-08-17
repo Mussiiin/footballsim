@@ -531,6 +531,8 @@ function generateClub(
     titles: [],
     lastResults: [],
     financeHistory: [],
+    financeTransactions: [],
+    competitionPrizes: [],
     lastSeasonPosition: null,
     rivals: [],
     averageAge: 25,
@@ -703,7 +705,11 @@ export function cupFixtures(comp: Competition, world: World, rng: RNG): { matche
   while (target * 2 <= nTeams) target *= 2; // maior potência de 2 ≤ nTeams
   const firstRoundGames = nTeams - target;      // jogos na 1ª fase
   const byesCount = nTeams - firstRoundGames * 2; // passam direto (melhores)
-  const totalRounds = 1 + Math.log2(target);
+  // Copa do Brasil real: 80 clubes → 8 fases (1ª→4ª, Oitavas, Quartas, Semifinal, Final),
+  // com os cabeças de chave entrando ao longo das fases iniciais — assim a premiação
+  // das Oitavas (R$ 3 mi) também é paga.
+  const bigCup = nTeams === 80;
+  const totalRounds = bigCup ? 8 : 1 + Math.log2(target);
   const roundDates = Array.from({ length: totalRounds }, (_, i) =>
     addDays(baseDate, Math.round(15 + ((215 - 15) * i) / Math.max(1, totalRounds - 1))),
   );
@@ -772,40 +778,79 @@ export function cupFixtures(comp: Competition, world: World, rng: RNG): { matche
     rounds[0].matchIds.push(m.id);
   }
 
-  // 2ª fase: vencedores da 1ª + cabeças de chave (até chegar em potência de 2)
-  const secondGames = target / 2;
-  const winnerPairs = firstRoundGames / 2;
-  for (let i = 0; i < secondGames; i++) {
-    const m = mkMatch(2, roundDates[1], 1);
-    if (i < winnerPairs) {
-      refs[m.id] = {
-        home: { kind: 'winner', matchId: rounds[0].matchIds[i * 2] },
-        away: { kind: 'winner', matchId: rounds[0].matchIds[i * 2 + 1] },
-      };
-    } else {
-      const bi = (i - winnerPairs) * 2;
-      refs[m.id] = {
-        home: { kind: 'club', id: byes[bi] },
-        away: { kind: 'club', id: byes[bi + 1] },
-      };
+  if (bigCup) {
+    // 2ª, 3ª e 4ª fase: 16 jogos cada (8 entre vencedores + 8 entre novos cabeças de chave)
+    let byeIdx = 0;
+    for (let ri = 1; ri < 4; ri++) {
+      const prev = rounds[ri - 1].matchIds; // 16 jogos da fase anterior
+      for (let i = 0; i < 16; i++) {
+        const m = mkMatch(ri + 1, roundDates[ri], ri);
+        if (i < 8) {
+          refs[m.id] = {
+            home: { kind: 'winner', matchId: prev[i] },
+            away: { kind: 'winner', matchId: prev[i + 8] },
+          };
+        } else {
+          refs[m.id] = {
+            home: { kind: 'club', id: byes[byeIdx] },
+            away: { kind: 'club', id: byes[byeIdx + 1] },
+          };
+          byeIdx += 2;
+        }
+        matches.push(m);
+        rounds[ri].matchIds.push(m.id);
+      }
     }
-    matches.push(m);
-    rounds[1].matchIds.push(m.id);
-  }
-
-  // fases seguintes: vencedores da fase anterior
-  const prevMatchIds = (ri: number) => rounds[ri].matchIds;
-  for (let ri = 2; ri < totalRounds; ri++) {
-    const prev = prevMatchIds(ri - 1);
-    const nMatches = prev.length / 2;
-    for (let i = 0; i < nMatches; i++) {
-      const m = mkMatch(ri + 1, roundDates[ri], ri);
-      refs[m.id] = {
-        home: { kind: 'winner', matchId: prev[i * 2] },
-        away: { kind: 'winner', matchId: prev[i * 2 + 1] },
-      };
+    // Oitavas em diante: vencedores da fase anterior (8 → 4 → 2 → 1 jogos)
+    for (let ri = 4; ri < totalRounds; ri++) {
+      const prev = rounds[ri - 1].matchIds;
+      const nMatches = prev.length / 2;
+      for (let i = 0; i < nMatches; i++) {
+        const m = mkMatch(ri + 1, roundDates[ri], ri);
+        refs[m.id] = {
+          home: { kind: 'winner', matchId: prev[i * 2] },
+          away: { kind: 'winner', matchId: prev[i * 2 + 1] },
+        };
+        matches.push(m);
+        rounds[ri].matchIds.push(m.id);
+      }
+    }
+  } else {
+    // 2ª fase: vencedores da 1ª + cabeças de chave (até chegar em potência de 2)
+    const secondGames = target / 2;
+    const winnerPairs = firstRoundGames / 2;
+    for (let i = 0; i < secondGames; i++) {
+      const m = mkMatch(2, roundDates[1], 1);
+      if (i < winnerPairs) {
+        refs[m.id] = {
+          home: { kind: 'winner', matchId: rounds[0].matchIds[i * 2] },
+          away: { kind: 'winner', matchId: rounds[0].matchIds[i * 2 + 1] },
+        };
+      } else {
+        const bi = (i - winnerPairs) * 2;
+        refs[m.id] = {
+          home: { kind: 'club', id: byes[bi] },
+          away: { kind: 'club', id: byes[bi + 1] },
+        };
+      }
       matches.push(m);
-      rounds[ri].matchIds.push(m.id);
+      rounds[1].matchIds.push(m.id);
+    }
+
+    // fases seguintes: vencedores da fase anterior
+    const prevMatchIds = (ri: number) => rounds[ri].matchIds;
+    for (let ri = 2; ri < totalRounds; ri++) {
+      const prev = prevMatchIds(ri - 1);
+      const nMatches = prev.length / 2;
+      for (let i = 0; i < nMatches; i++) {
+        const m = mkMatch(ri + 1, roundDates[ri], ri);
+        refs[m.id] = {
+          home: { kind: 'winner', matchId: prev[i * 2] },
+          away: { kind: 'winner', matchId: prev[i * 2 + 1] },
+        };
+        matches.push(m);
+        rounds[ri].matchIds.push(m.id);
+      }
     }
   }
 
@@ -950,6 +995,7 @@ export function generateWorld(seed: string, season = '2026/27'): World {
     playerTalks: {},
     inbox: [],
     talkHistory: [],
+    competitionPrizeRules: {},
     marketHighlights: [],
     windowRecordFee: 0,
     agents: {},
@@ -1123,6 +1169,9 @@ export function generateWorld(seed: string, season = '2026/27'): World {
   const ctf = continentalFixtures(cont, world, rng);
   world.continentalMatches[cont.id] = { matches: ctf.matches, roundWinners: {}, refs: ctf.refs, groups: ctf.groups };
   cont.rounds = ctf.rounds;
+
+  // premiação por fase (regras centralizadas) — geradas sob demanda pelo getPrizeRules
+  world.competitionPrizeRules = {};
 
   // finanças iniciais
   const startMonth = `${seasonYear}-07`;

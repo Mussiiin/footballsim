@@ -5,8 +5,15 @@
 // versão salvo no navegador. Totalmente separado dos dados de
 // carreira (que ficam no IndexedDB/Supabase).
 //
-// Para lançar um novo patch no futuro: adicione um novo objeto no
-// topo de UPDATE_HISTORY e ajuste GAME_VERSION. O resto é automático.
+// O popup é DISPARADO AUTOMATICAMENTE: cada publicação/deploy gera
+// um BUILD_VERSION único (hash do commit + timestamp) injetado pelo
+// Vite no build. Assim, TODA atualização publicada aparece na tela,
+// mesmo sem bump manual de versão. As patch notes (UPDATE_HISTORY)
+// são opcionais — quando não existem notas novas, o popup mostra um
+// resumo genérico da atualização.
+//
+// Para lançar um novo patch com notas: adicione um novo objeto no
+// topo de UPDATE_HISTORY e ajuste GAME_VERSION (npm run release).
 // ------------------------------------------------------------
 
 export interface UpdateNoteItem {
@@ -178,6 +185,51 @@ export const UPDATE_HISTORY: UpdateNoteVersion[] = [
 export const LATEST_UPDATE: UpdateNoteVersion = UPDATE_HISTORY[0];
 
 // ------------------------------------------------------------
+// Build atual (detecção automática de novas publicações)
+// ------------------------------------------------------------
+// Cada deploy gera um __BUILD_VERSION__ único injetado pelo Vite no
+// momento do build. Quando o build servido muda (nova publicação),
+// o popup aparece — sem depender de bump manual de versão.
+
+declare const __BUILD_VERSION__: string;
+
+/** Build exato servido neste momento (muda a cada deploy/publicação). */
+export const BUILD_VERSION: string =
+  typeof __BUILD_VERSION__ !== 'undefined' && __BUILD_VERSION__
+    ? __BUILD_VERSION__
+    : 'dev';
+
+/** Identificador curto do build (para exibição). */
+export const BUILD_ID: string = BUILD_VERSION.slice(0, 12);
+
+/**
+ * Notas exibidas quando a atualização é um build novo sem patch notes
+ * dedicadas (o usuário já viu a versão mais recente do UPDATE_HISTORY).
+ */
+export const GENERIC_BUILD_UPDATE: UpdateNoteVersion = {
+  version: 'build',
+  title: 'Novas melhorias publicadas',
+  date: new Date().toLocaleDateString('pt-BR'),
+  newFeatures: [],
+  improvements: [
+    {
+      title: 'Atualização automática',
+      description: 'O jogo agora detecta automaticamente cada nova publicação e avisa você assim que ela fica disponível.',
+    },
+    {
+      title: 'Melhorias e correções',
+      description: 'Este build traz as novidades, melhorias e correções publicadas recentemente no FootballSim.',
+    },
+  ],
+  bugFixes: [],
+};
+
+/** O usuário ainda não viu as patch notes da versão mais recente? */
+export function hasUnseenPatchNotes(): boolean {
+  return compareVersions(appliedVersion(), LATEST_UPDATE.version) < 0;
+}
+
+// ------------------------------------------------------------
 // Controle de versão salvo no navegador
 // ------------------------------------------------------------
 
@@ -186,6 +238,10 @@ interface UpdateState {
   appliedVersion: string;
   /** Última versão cujo popup automático já foi visto/fechado. */
   viewedVersion: string;
+  /** Build em que o popup já foi visto/adiado (evita reabrir no mesmo build). */
+  viewedBuild: string;
+  /** Build que o usuário tem instalado. */
+  appliedBuild: string;
 }
 
 const STORAGE_KEY = 'footballsim_update_state';
@@ -198,12 +254,19 @@ function readState(): UpdateState {
       return {
         appliedVersion: parsed.appliedVersion || DEFAULT_APPLIED_VERSION,
         viewedVersion: parsed.viewedVersion || '',
+        viewedBuild: parsed.viewedBuild || '',
+        appliedBuild: parsed.appliedBuild || '',
       };
     }
   } catch {
     /* localStorage indisponível — usa padrões */
   }
-  return { appliedVersion: DEFAULT_APPLIED_VERSION, viewedVersion: '' };
+  return {
+    appliedVersion: DEFAULT_APPLIED_VERSION,
+    viewedVersion: '',
+    viewedBuild: '',
+    appliedBuild: '',
+  };
 }
 
 function writeState(state: UpdateState) {
@@ -232,31 +295,44 @@ export function appliedVersion(): string {
   return readState().appliedVersion;
 }
 
-/** Existe uma versão mais nova que a instalada? (mostra o indicador no menu) */
+/**
+ * Existe uma versão mais nova que a instalada? (indicador no menu)
+ * Dispara por versão mais nova OU por build novo publicado.
+ */
 export function isUpdateAvailable(): boolean {
-  return compareVersions(readState().appliedVersion, LATEST_UPDATE.version) < 0;
+  const s = readState();
+  const versionBehind = compareVersions(s.appliedVersion, LATEST_UPDATE.version) < 0;
+  const buildBehind = s.appliedBuild !== '' && s.appliedBuild !== BUILD_VERSION;
+  return versionBehind || buildBehind;
 }
 
-/** O popup automático deve aparecer? (só uma vez por versão, até atualizar) */
+/**
+ * O popup automático deve aparecer? (uma vez por versão/build, até aplicar).
+ * Comportamento: aparece em TODA publicação nova — quando o build servido
+ * mudou e ainda não foi visto nem aplicado por este navegador.
+ */
 export function shouldShowUpdatePopup(): boolean {
   const s = readState();
-  return (
+  const versionUnseen =
     compareVersions(s.appliedVersion, LATEST_UPDATE.version) < 0 &&
-    compareVersions(s.viewedVersion, LATEST_UPDATE.version) < 0
-  );
+    compareVersions(s.viewedVersion, LATEST_UPDATE.version) < 0;
+  const buildUnseen = s.appliedBuild !== BUILD_VERSION && s.viewedBuild !== BUILD_VERSION;
+  return versionUnseen || buildUnseen;
 }
 
-/** Botão "Depois" — marca como vista para não reabrir sozinha (o indicador no menu continua). */
+/** Botão "Depois" — marca como vista para não reabrir no mesmo build (o indicador no menu continua). */
 export function dismissUpdatePopup(): void {
   const s = readState();
-  writeState({ ...s, viewedVersion: LATEST_UPDATE.version });
+  writeState({ ...s, viewedVersion: LATEST_UPDATE.version, viewedBuild: BUILD_VERSION });
 }
 
-/** Conclui a atualização — marca a versão como instalada. */
+/** Conclui a atualização — marca a versão e o build como instalados. */
 export function markUpdateApplied(): void {
   writeState({
     appliedVersion: LATEST_UPDATE.version,
     viewedVersion: LATEST_UPDATE.version,
+    viewedBuild: BUILD_VERSION,
+    appliedBuild: BUILD_VERSION,
   });
 }
 

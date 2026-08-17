@@ -1,6 +1,7 @@
 import {
-  World, Competition, Match, StandingRow, MatchRef, CupMatchStore, ContinentalMatchStore,
+  World, Competition, Match, StandingRow, MatchRef, CupMatchStore, ContinentalMatchStore, Career,
 } from '../lib/types';
+import { getPrizeRules, stagePrizeFor, grantPrize } from './cupPrizes';
 
 // ------------------------------------------------------------
 // Vencedor de uma partida (considera pênaltis)
@@ -76,7 +77,7 @@ export function resolveRound(world: World, compId: string, roundIndex: number): 
 }
 
 /** Atualiza o estado dos mata-matas após as partidas de um dia. */
-export function syncBrackets(world: World): void {
+export function syncBrackets(world: World, career: Career | null = null): void {
   const koComps = [
     ...Object.keys(world.cupMatches),
     ...Object.keys(world.continentalMatches),
@@ -100,6 +101,7 @@ export function syncBrackets(world: World): void {
       });
       if (allPlayed && !round.complete) {
         // registra vencedores
+        const winners: string[] = [];
         for (const id of round.matchIds) {
           const m = store.matches.find((x) => x.id === id);
           if (m) {
@@ -109,11 +111,23 @@ export function syncBrackets(world: World): void {
             if (!w && m.homeScore !== null && m.awayScore !== null && m.homeId !== '__TBD__') {
               w = m.homeId;
             }
-            if (w && w !== '__TBD__' && world.clubs[w]) store.roundWinners[id] = w;
+            if (w && w !== '__TBD__' && world.clubs[w]) {
+              store.roundWinners[id] = w;
+              winners.push(w);
+            }
           }
         }
         round.complete = true;
         comp.currentRoundIndex = r + 1;
+        // 💰 Premiação por avanço: cada vencedor recebe o valor da fase concluída
+        const rules = getPrizeRules(world, compId);
+        if (rules && round.name !== 'Final') {
+          for (const w of winners) {
+            const club = world.clubs[w];
+            if (!club) continue;
+            grantPrize(world, career, compId, w, round.name, stagePrizeFor(rules, round.name, club));
+          }
+        }
         // resolve a próxima fase
         if (r + 1 < comp.rounds.length) {
           resolveRound(world, compId, r + 1);
@@ -129,23 +143,28 @@ export function syncBrackets(world: World): void {
       if (finalMatch) {
         const championId = winnerOf(finalMatch);
         if (championId) {
+          const runnerUpId = championId === finalMatch.homeId ? finalMatch.awayId : finalMatch.homeId;
           const championName = world.clubs[championId]?.name ?? '';
           comp.champions.push({
             season: comp.season,
             champion: championName,
-            runnerUp: world.clubs[championId === finalMatch.homeId ? finalMatch.awayId : finalMatch.homeId]?.name ?? '',
+            runnerUp: world.clubs[runnerUpId]?.name ?? '',
           });
           const club = world.clubs[championId];
           if (club) {
             club.titles.push({ competitionId: comp.id, competitionName: comp.name, season: comp.season });
-            club.balance += comp.prizeMoney.champion;
-            club.financeAccum.revenue += comp.prizeMoney.champion;
+            // 💰 Campeão recebe SOMENTE a premiação de campeão (nunca a do vice)
+            const rules = getPrizeRules(world, compId);
+            const championAmt = rules?.prizes.champion ?? comp.prizeMoney.champion ?? 0;
+            grantPrize(world, career, compId, championId, 'Campeão', championAmt);
             if (!club.isUserControlled) club.coach.reputation = Math.min(99, club.coach.reputation + 2);
           }
-          const runnerUp = world.clubs[championId === finalMatch.homeId ? finalMatch.awayId : finalMatch.homeId];
+          const runnerUp = world.clubs[runnerUpId];
           if (runnerUp) {
-            runnerUp.balance += comp.prizeMoney.runnerUp;
-            runnerUp.financeAccum.revenue += comp.prizeMoney.runnerUp;
+            // 💰 Vice-campeão recebe a premiação de vice
+            const rules = getPrizeRules(world, compId);
+            const runnerUpAmt = rules?.prizes.runnerUp ?? comp.prizeMoney.runnerUp ?? 0;
+            grantPrize(world, career, compId, runnerUpId, 'Vice-campeão', runnerUpAmt);
           }
         }
       }

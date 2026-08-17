@@ -15,6 +15,7 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: 'squad', label: 'Elenco' },
   { id: 'contract', label: 'Contratos' },
   { id: 'board', label: 'Diretoria' },
+  { id: 'finance', label: 'Finanças' },
 ];
 
 const PRIORITY_STYLE: Record<string, string> = {

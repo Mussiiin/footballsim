@@ -88,15 +88,28 @@ export function TacticsScreen() {
   const bestSlotsByScore = (scoreFn: (p: Player) => number): Record<string, string> => {
     const slots: Record<string, string> = {};
     const used = new Set<string>();
+    const outfield = squad.filter((p) => p.position !== 'GK');
+    const keepers = squad.filter((p) => p.position === 'GK');
     for (const slot of formation) {
+      const isGK = slot.position === 'GK';
+      // vaga de linha só aceita jogadores de linha (nunca goleiro); a vaga de goleiro só aceita goleiros
+      const pool = isGK ? keepers : outfield;
       let best: string | null = null;
       let bestScore = -Infinity;
-      for (const p of squad) {
+      for (const p of pool) {
         if (used.has(p.id) || p.injury || p.suspension > 0) continue;
         const fit = p.position === slot.position ? 3 : p.secondaryPositions.includes(slot.position) ? 2 : 0;
         // posição domina (nunca 2 goleiros etc.); o critério (overall/energia) desempata dentro da posição
         const score = fit * 20 + scoreFn(p);
         if (score > bestScore) { bestScore = score; best = p.id; }
+      }
+      if (!best && !isGK) {
+        // último recurso: sem jogador de linha livre — usa um goleiro para não deixar buraco
+        for (const p of keepers) {
+          if (used.has(p.id) || p.injury || p.suspension > 0) continue;
+          best = p.id;
+          break;
+        }
       }
       if (best) { slots[slot.id] = best; used.add(best); }
     }
@@ -189,16 +202,26 @@ export function TacticsScreen() {
           }
         }
       }
-      // melhor disponível
+      // melhor disponível (vaga de linha só usa jogadores de linha; goleiro é último recurso)
+      const isGK = slot.position === 'GK';
+      const pool = isGK ? squad.filter((p) => p.position === 'GK') : squad.filter((p) => p.position !== 'GK');
       let best: string | null = null;
       let bestScore = -Infinity;
-      for (const p of squad) {
+      for (const p of pool) {
         if (used.has(p.id) || p.injury || p.suspension > 0) continue;
         const fit = p.position === slot.position ? 3 : p.secondaryPositions.includes(slot.position) ? 2 : 0;
         const score = overallOf(p) + fit * 3;
         if (score > bestScore) {
           bestScore = score;
           best = p.id;
+        }
+      }
+      if (!best && !isGK) {
+        for (const p of squad) {
+          if (p.position === 'GK' && !used.has(p.id) && !p.injury && p.suspension <= 0) {
+            best = p.id;
+            break;
+          }
         }
       }
       if (best) {

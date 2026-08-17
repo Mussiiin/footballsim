@@ -88,6 +88,21 @@ function availableFor(clubPlayers: Player[], date: string): Player[] {
   );
 }
 
+/**
+ * Regra de escalação: goleiro só ocupa vaga de linha como ÚLTIMO recurso
+ * (quando não sobra nenhum jogador de linha disponível) e a vaga de goleiro
+ * só aceita jogador de linha se não houver nenhum goleiro disponível.
+ */
+function splitPool(avail: Player[]): { outfield: Player[]; keepers: Player[] } {
+  const outfield: Player[] = [];
+  const keepers: Player[] = [];
+  for (const p of avail) {
+    if (p.position === 'GK') keepers.push(p);
+    else outfield.push(p);
+  }
+  return { outfield, keepers };
+}
+
 /** Melhor escalação possível para uma formação. */
 export function pickBestLineup(
   players: Player[],
@@ -97,13 +112,17 @@ export function pickBestLineup(
 ): LineupChoice {
   const slots = FORMATIONS[formation];
   const avail = availableFor(players, date);
+  const { outfield, keepers } = splitPool(avail);
   const used = new Set<string>();
   const picks: string[] = [];
 
   for (const slot of slots) {
+    const isGK = slot.position === 'GK';
+    // Vaga de linha usa apenas jogadores de linha; vaga de goleiro usa goleiros.
+    const pool = isGK ? keepers : outfield;
     let best: Player | null = null;
     let bestScore = -Infinity;
-    for (const p of avail) {
+    for (const p of pool) {
       if (used.has(p.id)) continue;
       const fit = positionFit(p, slot.position);
       const score = overallAt(p, slot.position) + (fit === 100 ? 3 : fit === 80 ? 2 : fit === 55 ? 1 : -4) + p.condition / 30;
@@ -112,9 +131,9 @@ export function pickBestLineup(
         best = p;
       }
     }
-    if (!best) {
-      // qualquer jogador disponível
-      for (const p of avail) {
+    if (!best && !isGK) {
+      // último recurso: nenhum jogador de linha livre — usa um goleiro para não deixar buraco
+      for (const p of keepers) {
         if (!used.has(p.id)) {
           best = p;
           break;
@@ -145,10 +164,12 @@ export function fillUserLineup(
 ): LineupChoice {
   const slots = FORMATIONS[formation];
   const avail = availableFor(clubPlayers, date);
+  const { outfield, keepers } = splitPool(avail);
   const used = new Set<string>();
   const picks: string[] = [];
 
   for (const slot of slots) {
+    const isGK = slot.position === 'GK';
     const preferred = slotsMap[slot.id];
     let chosen: Player | null = null;
     if (preferred) {
@@ -158,15 +179,25 @@ export function fillUserLineup(
       }
     }
     if (!chosen) {
+      // vaga de linha usa jogadores de linha; vaga de goleiro usa goleiros
+      const pool = isGK ? keepers : outfield;
       let best: Player | null = null;
       let bestScore = -Infinity;
-      for (const p of avail) {
+      for (const p of pool) {
         if (used.has(p.id)) continue;
         const fit = positionFit(p, slot.position);
         const score = overallAt(p, slot.position) + (fit === 100 ? 3 : fit === 80 ? 2 : fit === 55 ? 1 : -4) + p.condition / 30;
         if (score > bestScore) {
           bestScore = score;
           best = p;
+        }
+      }
+      if (!best && !isGK) {
+        for (const p of keepers) {
+          if (!used.has(p.id)) {
+            best = p;
+            break;
+          }
         }
       }
       chosen = best;

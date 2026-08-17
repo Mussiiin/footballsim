@@ -4,6 +4,9 @@ import {
   LATEST_UPDATE,
   UPDATE_HISTORY,
   appliedVersion,
+  BUILD_ID,
+  GENERIC_BUILD_UPDATE,
+  hasUnseenPatchNotes,
   dismissUpdatePopup,
   markUpdateApplied,
 } from '../game/updateNotes';
@@ -93,7 +96,8 @@ export function UpdateModal({
   useEffect(() => {
     if (open) {
       setView(forceView ?? 'intro');
-      setSelected(LATEST_UPDATE);
+      // Se o usuário já viu as patch notes, mostra o resumo genérico do build novo.
+      setSelected(hasUnseenPatchNotes() ? LATEST_UPDATE : GENERIC_BUILD_UPDATE);
       setProgress(0);
       setStage('download');
     }
@@ -133,6 +137,8 @@ export function UpdateModal({
   if (!open) return null;
 
   const currentVersion = appliedVersion();
+  // Atualização apenas de build (sem patch notes novas) — o usuário já está na versão mais recente.
+  const buildOnly = !hasUnseenPatchNotes();
 
   const closeBtn = !isRequired && (
     <button
@@ -148,7 +154,9 @@ export function UpdateModal({
     <div className="inline-flex items-center gap-2 rounded-lg bg-surface-800 border border-surface-600 px-3 py-1.5 font-mono text-sm">
       <span className="text-slate-400">{currentVersion}</span>
       <span className="text-accent">→</span>
-      <span className="font-bold text-accent">{LATEST_UPDATE.version}</span>
+      <span className="font-bold text-accent">
+        {buildOnly ? `build ${BUILD_ID}` : LATEST_UPDATE.version}
+      </span>
     </div>
   );
 
@@ -192,7 +200,7 @@ export function UpdateModal({
             </div>
             <div>
               <h3 className="font-display font-bold text-lg text-slate-100 leading-tight">🚀 Nova atualização</h3>
-              <p className="text-[11px] text-slate-500">FootballSim {LATEST_UPDATE.version}</p>
+              <p className="text-[11px] text-slate-500">FootballSim v{LATEST_UPDATE.version} · build {BUILD_ID}</p>
             </div>
           </div>
           {closeBtn}
@@ -206,6 +214,11 @@ export function UpdateModal({
               {isRequired && (
                 <div className="flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-400">
                   <ShieldAlert size={15} /> ESTA ATUALIZAÇÃO É OBRIGATÓRIA
+                </div>
+              )}
+              {buildOnly && (
+                <div className="flex items-center gap-2 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-xs font-semibold text-sky-300">
+                  🛠️ Novas melhorias e correções foram publicadas para o FootballSim.
                 </div>
               )}
               <p className="text-sm text-slate-300 leading-relaxed">
@@ -227,21 +240,21 @@ export function UpdateModal({
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <button
-                  onClick={() => setView(selected.version === LATEST_UPDATE.version ? 'intro' : 'history')}
+                  onClick={() => setView(selected === GENERIC_BUILD_UPDATE || selected.version === LATEST_UPDATE.version ? 'intro' : 'history')}
                   className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-slate-200 transition"
                 >
                   <ChevronLeft size={14} /> Voltar
                 </button>
-                <div className="font-mono text-xs text-slate-500">v{selected.version} · {selected.date}</div>
+                <div className="font-mono text-xs text-slate-500">{selected === GENERIC_BUILD_UPDATE ? `build ${BUILD_ID}` : `v${selected.version}`} · {selected.date}</div>
               </div>
               <p className="font-display font-bold text-slate-100">{selected.title}</p>
               <PatchNotesBody version={selected} />
-              {selected.version === LATEST_UPDATE.version && (
+              {selected === GENERIC_BUILD_UPDATE || selected.version === LATEST_UPDATE.version ? (
                 <div className="pt-2 space-y-2 border-t border-surface-700/50">
                   {updateButton}
                   {laterButton}
                 </div>
-              )}
+              ) : null}
             </div>
           )}
 

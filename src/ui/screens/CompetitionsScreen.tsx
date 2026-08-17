@@ -4,6 +4,8 @@ import { ClubCrest, FormRow, Modal, ResultPill } from '../components';
 import { sortedStandings, topScorersOf, topAssistsOf, currentCupRoundName, winnerOf, competitionMatches, matchForClubOnDate } from '../../game/competitions';
 import { Competition, CupMatchStore, Match } from '../../lib/types';
 import { formatDateBR } from '../../lib/date';
+import { fmtMoney } from '../../lib/format';
+import { clubPrizeInfo } from '../../game/cupPrizes';
 import { Search, Trophy, ChevronDown, Eye, Gamepad2, CalendarDays } from 'lucide-react';
 
 const SEL_KEY_PREFIX = 'fs_comp_selected_';
@@ -499,6 +501,7 @@ function CupView({ comp, world, onClub, continental = false }: { comp: Competiti
 
   const currentRound = currentCupRoundName(comp);
   const isUserIn = career && comp.clubIds.includes(career.clubId);
+  const prize = isUserIn && career ? clubPrizeInfo(world, career.clubId, comp.id) : null;
 
   return (
     <div className="grid lg:grid-cols-3 gap-5">
@@ -557,6 +560,55 @@ function CupView({ comp, world, onClub, continental = false }: { comp: Competiti
           })}
         </div>
       </div>
+
+      {prize && (
+        <div className="card p-5 border-gold/30">
+          <p className="text-xs font-semibold uppercase tracking-wider text-gold mb-3">💰 Premiação da competição</p>
+          <div className="space-y-2.5 text-sm">
+            <div className="flex justify-between">
+              <span className="text-slate-400">Fase atual</span>
+              <span className="font-semibold text-slate-100">{prize.currentStage}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Premiação recebida</span>
+              <span className="font-mono font-bold text-accent">{fmtMoney(prize.received)}</span>
+            </div>
+            {!prize.finished && (
+              <div className="flex justify-between">
+                <span className="text-slate-400">Prêmio desta fase</span>
+                <span className="font-mono text-slate-200">{prize.eliminated ? '—' : `+ ${fmtMoney(prize.nextPrize)}`}</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-slate-400">Ainda pode ganhar</span>
+              <span className="font-mono text-slate-200">{prize.eliminated ? '—' : `+ ${fmtMoney(prize.remaining)}`}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Total se campeão</span>
+              <span className="font-mono text-gold">{fmtMoney(prize.championIf)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Total se vice</span>
+              <span className="font-mono text-slate-300">{fmtMoney(prize.runnerUpIf)}</span>
+            </div>
+          </div>
+          {prize.eliminated && (
+            <p className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-400">
+              ❌ Eliminado — não recebe mais premiação nesta competição.
+            </p>
+          )}
+          {prize.prizesByStage.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-surface-700/60 space-y-1">
+              {prize.prizesByStage.slice(0, 8).map((p, i) => (
+                <div key={i} className="flex justify-between text-xs">
+                  <span className="text-slate-400">✓ {p.stage}</span>
+                  <span className="font-mono text-accent">+ {fmtMoney(p.amount)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="card p-5">
         <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Histórico</p>

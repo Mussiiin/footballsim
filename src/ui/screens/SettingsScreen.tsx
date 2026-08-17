@@ -3,6 +3,7 @@ import { useGame } from '../../state/store';
 import { isSupabaseConfigured } from '../../lib/supabase';
 import {
   GAME_VERSION,
+  BUILD_ID,
   appliedVersion,
   isUpdateAvailable,
   openUpdateModal,
@@ -63,6 +64,7 @@ export function SettingsScreen() {
         </div>
         <p className="text-sm text-slate-300 mb-3">
           Versão instalada: <span className="font-mono font-bold text-accent">v{appliedVersion()}</span>
+          <span className="text-slate-500"> · build {BUILD_ID}</span>
         </p>
         {isUpdateAvailable() ? (
           <div className="flex flex-wrap gap-2">

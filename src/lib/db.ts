@@ -74,6 +74,12 @@ function migrateCareer(c: Career): Career {
   if (!w.playerTalks) w.playerTalks = {};
   if (!w.inbox) w.inbox = [];
   if (!w.talkHistory) w.talkHistory = [];
+  // premiação por fase: regras centralizadas + controle de pagamento único + transações
+  if (!w.competitionPrizeRules) w.competitionPrizeRules = {};
+  for (const club of Object.values(w.clubs)) {
+    if (!club.competitionPrizes) club.competitionPrizes = [];
+    if (!club.financeTransactions) club.financeTransactions = [];
+  }
   if (!w.windowRecordFee) w.windowRecordFee = 0;
   // migração: negociações antigas sem exame em andamento
   for (const neg of Object.values(w.negotiations ?? {})) {

@@ -247,7 +247,7 @@ export function simulateOneDay(world: World, career: Career | null, difficulty: 
   result.newsCount = sim.newsCount;
 
   // mata-mata
-  syncBrackets(world);
+  syncBrackets(world, career);
 
   // processos semanais (segunda-feira)
   if (dayOfWeek(date) === 1) {
@@ -330,7 +330,7 @@ export function advanceToNextMatch(
 export function finishMatchDay(world: World, career: Career, difficulty: Career['difficulty']): DayResult {
   const date = world.date;
   const sim = simulateAIMatchesOn(world, career, date, career.clubId);
-  syncBrackets(world);
+  syncBrackets(world, career);
   let seasonAdvanced = false;
   let summary: SeasonSummary | undefined;
   if (isSeasonOver(world) && !world.seasonEnded) {

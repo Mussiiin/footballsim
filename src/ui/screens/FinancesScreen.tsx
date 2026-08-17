@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useGame } from '../../state/store';
 import { StatCard } from '../components';
 import { fmtMoney, fmtMoneyFull } from '../../lib/format';
+import { formatDateBR } from '../../lib/date';
 import { monthlyTvMoney, monthlySponsorship } from '../../game/finances';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
@@ -27,6 +28,9 @@ export function FinancesScreen() {
 
   const squad = Object.values(world.players).filter((p) => p.clubId === career!.clubId && p.status === 'active' && !p.arrivingUntil);
   const topWages = [...squad].sort((a, b) => (b.contract?.wage ?? 0) - (a.contract?.wage ?? 0)).slice(0, 8);
+  const prizes = (club.financeTransactions ?? []).filter(
+    (t) => t.type === 'competition_prize' && (!t.season || t.season === world.season),
+  );
 
   return (
     <div className="space-y-5 animate-fadeUp">
@@ -93,6 +97,25 @@ export function FinancesScreen() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="card p-5">
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">💰 Premiações de competições (temporada {world.season})</p>
+        {prizes.length > 0 ? (
+          <div className="space-y-2">
+            {prizes.map((t) => (
+              <div key={t.id} className="flex items-center justify-between rounded-lg bg-surface-800/50 px-3 py-2 text-sm">
+                <div className="min-w-0">
+                  <p className="text-slate-200 truncate">🏆 {t.description}</p>
+                  <p className="text-[11px] text-slate-500">{formatDateBR(t.date)} · {t.stage}</p>
+                </div>
+                <span className="font-mono font-bold text-accent shrink-0">+ {fmtMoney(t.amount)}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500">Nenhuma premiação recebida nesta temporada ainda. Avance nas copas para receber prêmios por fase.</p>
+        )}
       </div>
 
       <div className="card p-5">
