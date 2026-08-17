@@ -17,7 +17,7 @@
 // ------------------------------------------------------------
 
 import { execSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -94,7 +94,11 @@ if (featurePending.length > 0) {
   // stage SOMENTE os arquivos do recurso — nunca -A, para não arrastar
   // updateNotes.ts/manifest (que pertencem ao commit da release) para cá
   sh(`git add ${paths.map((p) => `"${p}"`).join(' ')}`);
-  sh(`git commit -m "${subject.replace(/"/g, '\\"')}" -m "${body.replace(/"/g, '\\"')}"`);
+  // mensagem via arquivo (-F): evita quebras de linha no cmd.exe (Windows)
+  const msgPath = join(root, '.git', 'FB_COMMIT_MSG.tmp');
+  writeFileSync(msgPath, `${subject}\n\n${body}\n`, 'utf8');
+  sh(`git commit -F "${msgPath}"`);
+  rmSync(msgPath, { force: true });
   console.log(`   ✔ ${subject}`);
 } else {
   console.log('ℹ️  Nenhuma mudança de jogo pendente — só a release será publicada.');
