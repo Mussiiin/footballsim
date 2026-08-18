@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { GameProvider, useGame } from './state/store';
 import { UpdateModal } from './ui/UpdateModal';
 import { ConversationGate } from './ui/PlayerConversationModal';
+import { PopupHost } from './ui/PopupHost';
 import {
   shouldShowUpdatePopup,
   dismissUpdatePopup,
@@ -100,8 +101,8 @@ function Router() {
   if (route === 'season-end') return <SeasonEndScreen />;
   if (route === 'promises') return <Shell active="squad"><PromisesScreen key={career.id} /></Shell>;
   if (route.startsWith('transfers:')) {
-    const tab = route.slice(10);
-    return <Shell active="transfers"><TransfersScreen key={tab} initialTab={tab} /></Shell>;
+    const [, tab, offerId] = route.split(':');
+    return <Shell active="transfers"><TransfersScreen key={`${tab}:${offerId ?? ''}`} initialTab={tab ?? 'market'} initialOfferId={offerId} /></Shell>;
   }
   if (route.startsWith('competitions:')) {
     const id = route.slice(13);
@@ -168,6 +169,7 @@ export default function App() {
       <Router />
       <UpdateGate />
       <ConversationGate />
+      <PopupHost />
     </GameProvider>
   );
 }

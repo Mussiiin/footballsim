@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { Career, Settings, DEFAULT_SETTINGS, TeamSetup, TrainingFocus, Difficulty, Match } from '../lib/types';
+import { GamePopup, registerPopupSink } from '../game/popups';
 import { getCurrentUser, signIn, signUp, signOut, User, onAuthChange, resetPassword } from '../lib/auth';
 import { storage } from '../lib/db';
 import { createCareer, acceptJobOffer, sackManager } from '../game/career';
@@ -81,6 +82,8 @@ interface GameStore {
   signing: SigningResult | null;
   clearSigning: () => void;
   negotiationRoute: (playerId: string) => void;
+  popups: GamePopup[];
+  dismissPopup: (id: string) => void;
   acceptJob: (clubId: string) => void;
   investInYouth: (levels: number) => void;
   promoteYouth: (playerId: string) => void;
@@ -111,6 +114,7 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [seasonSummary, setSeasonSummary] = useState<SeasonSummary | null>(null);
   const [signing, setSigning] = useState<SigningResult | null>(null);
+  const [popups, setPopups] = useState<GamePopup[]>([]);
   const [, setVersion] = useState(0);
   const careerRef = useRef<Career | null>(null);
   const userRef = useRef<User | null>(null);
@@ -146,6 +150,16 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const touch = useCallback(() => {
     setVersion((v) => v + 1);
+  }, []);
+
+  // destino dos popups emitidos pelo código do jogo (fila exibida pelo PopupHost)
+  useEffect(() => {
+    registerPopupSink((p) => setPopups((prev) => [...prev, p].slice(-30)));
+    return () => registerPopupSink(() => {});
+  }, []);
+
+  const dismissPopup = useCallback((id: string) => {
+    setPopups((prev) => prev.filter((p) => p.id !== id));
   }, []);
 
   const saveNow = useCallback(async () => {
@@ -550,6 +564,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     signing,
     clearSigning: () => setSigning(null),
     negotiationRoute,
+    popups,
+    dismissPopup,
     acceptJob,
     investInYouth,
     promoteYouth,

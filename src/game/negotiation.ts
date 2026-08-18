@@ -19,6 +19,7 @@ import { isInTransferWindow } from './sim';
 import { addNews, notify } from './news';
 import { pushOfferMessage, pushMarketNotice } from './messages';
 import { openSquadInquiry, squadInquiryForPlayer } from './sondagem';
+import { popupIncomingProposal, popupIncomingInquiry, popupInterest, popupPlayerAccepted, popupPlayerRefused } from './popups';
 import { divisionOf } from './economy';
 import { sackManager } from './career';
 import { COUNTRIES } from './names';
@@ -1314,6 +1315,7 @@ export function sendWageOffer(world: World, career: Career, negId: string, input
     neg.mood.player = '😄 Muito satisfeito';
     neg.messages.push(msg('player', `Fechado. Estou ansioso para começar!`, world.date, `${p.firstName} ${p.lastName}`, '😄 Muito satisfeito'));
     neg.messages.push(msg('agent', `Acordo verbal fechado. Podemos seguir para os exames médicos.`, world.date, `${agent.name} (agente)`, '🙂 Satisfeito'));
+    popupPlayerAccepted(p, input.wage, input.years);
     return neg;
   }
 
@@ -1345,6 +1347,7 @@ export function sendWageOffer(world: World, career: Career, negId: string, input
       neg.messages.push(msg('player', neg.interestScore < 50
         ? `Agradeço o interesse, mas não vejo o encaixe certo neste momento.`
         : `O salário oferecido está muito abaixo do que eu recebo hoje.`, world.date, `${p.firstName} ${p.lastName}`, '😡 Irritado'));
+      popupPlayerRefused(p, neg.rejectedReason ?? '');
       return neg;
     }
     // última tentativa: pede exatamente o mínimo
@@ -2100,6 +2103,9 @@ export function generateIncomingOffers(world: World, career: Career | null, rng:
       if (isInquiry) {
         // a sondagem vira um pedido registrado que o treinador pode responder
         openSquadInquiry(world, target.id, club.id);
+        popupIncomingInquiry(club.name, target);
+      } else {
+        popupInterest(club.name, target);
       }
       const title = isInquiry
         ? `${club.shortName} consultou as condições por ${target.firstName} ${target.lastName}`
@@ -2126,23 +2132,23 @@ export function generateIncomingOffers(world: World, career: Career | null, rng:
  */
 function makeOfficialProposal(
   world: World, career: Career, rng: RNG, target: Player, club: Club, score: number, userClub: Club,
-): boolean {
+): string | null {
   const price = sellingPrice(world, target, userClub);
-  if (price < 300_000) return false; // jogador sem valor de mercado
+  if (price < 300_000) return null; // jogador sem valor de mercado
   const [lo, hi] = score >= 85 ? [1.1, 1.45] : score >= 65 ? [0.95, 1.25] : score >= 45 ? [0.8, 1.1] : [0.7, 0.95];
   let fee = Math.round((price * rng.float(lo, hi)) / 1e4) * 1e4;
 
   // resposta registrada do treinador orienta as propostas futuras
   const lastAnswer = squadInquiryForPlayer(world, target.id);
-  if (lastAnswer?.status === 'nao-vende' && lastAnswer.responseDate && daysBetween(lastAnswer.responseDate, world.date) < 45) return false;
+  if (lastAnswer?.status === 'nao-vende' && lastAnswer.responseDate && daysBetween(lastAnswer.responseDate, world.date) < 45) return null;
   if (lastAnswer?.status === 'so-alta' && lastAnswer.minFee > 0 && fee < lastAnswer.minFee) {
     // o clube tenta pagar o mínimo sinalizado (se quiser muito) ou desiste
     const ok = rng.chance(Math.min(0.5, Math.max(0.1, fee / lastAnswer.minFee)));
-    if (!ok) return false;
+    if (!ok) return null;
     fee = lastAnswer.minFee;
   }
   const needMult = divisionOf(club) < divisionOf(userClub) ? 1.8 : 1.35;
-  if (club.balance < fee * needMult) return false; // comprador sem condições
+  if (club.balance < fee * needMult) return null; // comprador sem condições
 
   const sellOn = divisionOf(club) > divisionOf(userClub) && rng.chance(0.25) ? rng.pick([10, 15]) : 0;
   const bonus = rng.chance(0.35) ? Math.round(fee * rng.float(0.05, 0.12)) : 0;
@@ -2195,7 +2201,9 @@ function makeOfficialProposal(
   }
   notify(career, `📩 ${club.shortName} fez uma proposta de €${(fee / 1e6).toFixed(1)}M por ${target.firstName} ${target.lastName}.`, 'info', '📩', 'transfers');
   setOfferCooldown(world, target.id, cooldownFor(score, true));
-  return true;
+  // popup visível na tela — o treinador vê a proposta mesmo em outra aba
+  popupIncomingProposal(offer, club.name, target);
+  return offer.id;
 }
 
 /**
@@ -2226,7 +2234,7 @@ export function tickFollowUpProposals(world: World, career: Career | null, rng: 
     }
     // proposta oficial só entra com a janela aberta — fora dela o clube aguarda
     if (!isInTransferWindow(world, world.date)) continue;
-    let done = makeOfficialProposal(world, career, rng, target, club, 68, userClub);
+    let done = !!makeOfficialProposal(world, career, rng, target, club, 68, userClub);
     if (!done) {
       // o clube que sondou não conseguiu (ex.: orçamento) — outro clube compatível
       // com poder financeiro assume o interesse e a proposta sai mesmo assim

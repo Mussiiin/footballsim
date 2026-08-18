@@ -5,6 +5,7 @@
 // ============================================================
 import { World, Career, InboxMessage, InboxCategory, InboxPriority, PlayerTalk, TalkTopic, TalkHistoryEntry } from '../lib/types';
 import { notify } from './news';
+import { popupPlayerTalk } from './popups';
 
 const msgId = () => `im${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
 
@@ -67,6 +68,10 @@ export function markAllInboxRead(world: World): void {
 export function pushTalkMessage(world: World, career: Career, talk: PlayerTalk, preview: string): InboxMessage | null {
   const p = world.players[talk.playerId];
   if (!p) return null;
+  // popup visível na tela quando um jogador DO NOSSO elenco inicia a conversa
+  if (p.clubId === career.clubId && talk.initiatedBy === 'player') {
+    popupPlayerTalk(p, talk.line);
+  }
   return pushInbox(world, career, {
     playerId: p.id,
     senderName: `${p.firstName} ${p.lastName}`,

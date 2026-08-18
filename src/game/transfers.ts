@@ -5,6 +5,7 @@ import { clamp } from '../lib/format';
 import { addDays, daysBetween } from '../lib/date';
 import { addNews, newsFromTransfer } from './news';
 import { notify } from './news';
+import { popupTransferConcluded } from './popups';
 import { isInTransferWindow } from './sim';
 
 let transferCounter = 0;
@@ -260,6 +261,7 @@ export function executeTransfer(world: World, career: Career | null, exec: Trans
         career.flags.moneyEarned += exec.fee;
         career.flags.recordSale = Math.max(career.flags.recordSale, exec.fee);
         notify(career, `${p.firstName} ${p.lastName} foi vendido por €${exec.fee.toLocaleString('pt-BR')}.`, 'info', '💰');
+        popupTransferConcluded(p, toClub?.name ?? '—', exec.fee, 'sale');
       }
     }
   }
@@ -442,6 +444,7 @@ export function tickArrivals(world: World, career: Career | null): void {
             clubId: a.clubId,
             importance: 62,
           });
+          popupTransferConcluded(p, club?.name ?? 'seu clube', a.fee, 'arrival');
         }
         continue; // concluído: não fica na lista ativa
       }

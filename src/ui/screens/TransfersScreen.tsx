@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useGame } from '../../state/store';
 import { PlayerAvatar, OverallBadge, PositionBadge, Tabs, Empty, Modal } from '../components';
 import { sellingPrice, squadOf } from '../../game/transfers';
@@ -34,7 +34,7 @@ function interestDot(score: number): { icon: string; cls: string } {
   return { icon: '🔴', cls: 'text-red-500' };
 }
 
-export function TransfersScreen({ initialTab }: { initialTab?: string }) {
+export function TransfersScreen({ initialTab, initialOfferId }: { initialTab?: string; initialOfferId?: string }) {
   const { career, navigate } = useGame();
   const [tab, setTab] = useState(initialTab ?? 'market');
   const [search, setSearch] = useState('');
@@ -419,7 +419,7 @@ export function TransfersScreen({ initialTab }: { initialTab?: string }) {
       )}
 
       {tab === 'offers' && (
-        <IncomingOffersPanel />
+        <IncomingOffersPanel initialOfferId={initialOfferId} />
       )}
 
       {tab === 'sond-recebidas' && (
@@ -659,7 +659,7 @@ function SellTab() {
 // ------------------------------------------------------------
 // Propostas recebidas: clubes da IA querem jogadores do nosso elenco
 // ------------------------------------------------------------
-function IncomingOffersPanel() {
+function IncomingOffersPanel({ initialOfferId }: { initialOfferId?: string }) {
   const { career, sendNegotiationAction } = useGame();
   const world = career!.world;
   const [sel, setSel] = useState<IncomingOffer | null>(null);
@@ -677,6 +677,14 @@ function IncomingOffersPanel() {
     setSel(o);
     setCounterFee(String(Math.round(o.fee * 1.1)));
   };
+
+  // deep link vindo de um popup (ex.: transfers:offers:io123) — abre a proposta direto
+  useEffect(() => {
+    if (!initialOfferId) return;
+    const offer = world.incomingOffers.find((o) => o.id === initialOfferId);
+    if (offer) openOffer(offer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialOfferId]);
 
   const badge = (o: IncomingOffer) => {
     if (o.status === 'pending') return <span className="badge border border-accent/40 bg-accent/10 text-accent">Pendente</span>;
