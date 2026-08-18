@@ -18,6 +18,7 @@ import { sellingPrice, executeTransfer, isVitalPlayer, squadOf, freeAgents } fro
 import { isInTransferWindow } from './sim';
 import { addNews, notify } from './news';
 import { pushOfferMessage, pushMarketNotice } from './messages';
+import { openSquadInquiry, squadInquiryForPlayer } from './sondagem';
 import { divisionOf } from './economy';
 import { sackManager } from './career';
 import { COUNTRIES } from './names';
@@ -2063,10 +2064,11 @@ export function generateIncomingOffers(world: World, career: Career | null, rng:
     g[grp] = (g[grp] ?? 0) + 1;
   }
 
-  // 5) jogadores com interesse real, fora do cooldown, ordenados por interesse
+  // 5) jogadores com interesse real, fora do cooldown, sem sondagem pendente (a
+  //    resposta do treinador orienta o próximo passo), ordenados por interesse
   const candidates = mySquad
     .map((p) => ({ p, score: transferInterestScore(world, p, userClub, vitalIds) }))
-    .filter((x) => x.score >= 20 && !inCooldown(world, x.p.id))
+    .filter((x) => x.score >= 20 && !inCooldown(world, x.p.id) && !(squadInquiryForPlayer(world, x.p.id)?.status === 'pendente'))
     .sort((a, b) => b.score - a.score);
   if (candidates.length === 0) return;
 
@@ -2095,14 +2097,18 @@ export function generateIncomingOffers(world: World, career: Career | null, rng:
     if (event !== 'proposal') {
       // 👀 interesse / 📞 sondagem — NÃO abre proposta oficial
       const isInquiry = event === 'inquiry';
+      if (isInquiry) {
+        // a sondagem vira um pedido registrado que o treinador pode responder
+        openSquadInquiry(world, target.id, club.id);
+      }
       const title = isInquiry
         ? `${club.shortName} consultou as condições por ${target.firstName} ${target.lastName}`
         : `Clubes monitoram ${target.firstName} ${target.lastName}`;
       const preview = isInquiry
-        ? `O ${club.name} entrou em contato para saber os valores. Nenhuma proposta oficial ainda.`
+        ? `O ${club.name} entrou em contato para saber os valores. Responda se estamos abertos a negociar.`
         : `O ${club.name} está de olho no desempenho do jogador. Nenhuma proposta oficial ainda.`;
-      pushMarketNotice(world, career, club.shortName, isInquiry ? '📞' : '👀', title, preview, isInquiry ? 'normal' : 'low');
-      setOfferCooldown(world, target.id, cooldownFor(chosen.score, false));
+      pushMarketNotice(world, career, club.shortName, isInquiry ? '📞' : '👀', title, preview, isInquiry ? 'normal' : 'low', isInquiry ? 'transfers:sond-recebidas' : 'transfers');
+      setOfferCooldown(world, target.id, isInquiry ? 1 : cooldownFor(chosen.score, false));
       made++;
       continue;
     }
@@ -2111,7 +2117,17 @@ export function generateIncomingOffers(world: World, career: Career | null, rng:
     const price = sellingPrice(world, target, userClub);
     if (price < 300_000) continue; // jogador sem valor de mercado
     const [lo, hi] = chosen.score >= 85 ? [1.1, 1.45] : chosen.score >= 65 ? [0.95, 1.25] : chosen.score >= 45 ? [0.8, 1.1] : [0.7, 0.95];
-    const fee = Math.round((price * rng.float(lo, hi)) / 1e4) * 1e4;
+    let fee = Math.round((price * rng.float(lo, hi)) / 1e4) * 1e4;
+
+    // resposta registrada do treinador orienta as propostas futuras
+    const lastAnswer = squadInquiryForPlayer(world, target.id);
+    if (lastAnswer?.status === 'nao-vende' && lastAnswer.responseDate && daysBetween(lastAnswer.responseDate, world.date) < 45) continue;
+    if (lastAnswer?.status === 'so-alta' && lastAnswer.minFee > 0 && fee < lastAnswer.minFee) {
+      // o clube tenta pagar o mínimo sinalizado (se quiser muito) ou desiste
+      const ok = rng.chance(Math.min(0.5, Math.max(0.1, fee / lastAnswer.minFee)));
+      if (!ok) continue;
+      fee = lastAnswer.minFee;
+    }
     const needMult = divisionOf(club) < divisionOf(userClub) ? 1.8 : 1.35;
     if (club.balance < fee * needMult) continue; // comprador sem condições
 

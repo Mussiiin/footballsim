@@ -105,6 +105,7 @@ export function talkTopicTitle(t: TalkTopic): string {
 export function pushMarketNotice(
   world: World, career: Career, senderName: string, icon: string, title: string, preview: string,
   priority: InboxPriority = 'normal',
+  link: string = 'transfers',
 ): InboxMessage {
   return pushInbox(world, career, {
     clubId: senderName,
@@ -113,7 +114,7 @@ export function pushMarketNotice(
     preview,
     category: 'transfer',
     priority,
-    link: 'transfers',
+    link,
   });
 }
 

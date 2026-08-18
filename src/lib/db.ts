@@ -29,6 +29,12 @@ function migrateCareer(c: Career): Career {
     r.rejectedReason = r.rejectedReason ?? null;
   }
   if (!w.inquiries) w.inquiries = [];
+  if (!w.squadInquiries) w.squadInquiries = [];
+  for (const sq of w.squadInquiries) {
+    sq.responseDate = sq.responseDate ?? null;
+    sq.note = sq.note ?? null;
+    sq.minFee = sq.minFee ?? 0;
+  }
   if (!w.incomingOffers) w.incomingOffers = [];
   for (const o of w.incomingOffers) {
     o.messages = o.messages ?? [];

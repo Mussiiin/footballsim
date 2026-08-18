@@ -998,6 +998,21 @@ export interface SeasonSummary {
 
 export type InquiryStatus = 'pendente' | 'aberto' | 'so-alta' | 'nao-vende' | 'indisponivel';
 
+export type SquadInquiryStatus = 'pendente' | 'aberto' | 'so-alta' | 'nao-vende' | 'expirada';
+
+/** Sondagem recebida de outro clube sobre um jogador do nosso elenco — aguarda a resposta do treinador. */
+export interface SquadInquiry {
+  id: string;
+  playerId: string;
+  clubId: string;          // clube interessado (quem perguntou)
+  date: string;            // data em que a sondagem chegou
+  status: SquadInquiryStatus; // pendente → resposta do treinador
+  responseDate: string | null;
+  note: string | null;
+  /** valor mínimo aceito quando a resposta for 'so-alta' (só aceita proposta alta). */
+  minFee: number;
+}
+
 /** Sondagem enviada a outro clube (mercado vivo mesmo com a janela fechada). */
 export interface Inquiry {
   id: string;
@@ -1018,6 +1033,7 @@ export interface World {
   renewals: Record<string, RenewalNegotiation>;
   incomingOffers: IncomingOffer[];
   inquiries: Inquiry[]; // sondagens enviadas a outros clubes
+  squadInquiries: SquadInquiry[]; // sondagens recebidas de outros clubes pelos nossos jogadores
   pendingArrivals: PendingArrival[]; // contratações em trânsito (documentação/viagem/exames)
   playerTalks: Record<string, PlayerTalk>; // conversas entre treinador e jogadores
   /** Cooldown de mercado por jogador: playerId → data até a qual não recebe novos eventos (propostas/sondagens/interesses). */

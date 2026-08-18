@@ -1194,6 +1194,7 @@ export function generateWorld(seed: string, season = '2026/27'): World {
     renewals: {},
     incomingOffers: [],
     inquiries: [],
+    squadInquiries: [],
     pendingArrivals: [],
     playerTalks: {},
     offerCooldowns: {},

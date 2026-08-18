@@ -11,7 +11,7 @@ import { marketAnalysis, computeInterest, interestLevel, negotiationForPlayer, a
 import { PlayerMarketModal } from './PlayerMarketModal';
 import { openPlayerConversation } from '../../game/messages';
 import { squadComposition, SQUAD_TARGETS } from '../../game/squad';
-import { INQUIRY_LABEL, inquiryIcon, inquiryForPlayer } from '../../game/sondagem';
+import { INQUIRY_LABEL, inquiryIcon, inquiryForPlayer, SQUAD_INQUIRY_LABEL, squadInquiryIcon, respondSquadInquiry } from '../../game/sondagem';
 
 type SortKey = 'overall' | 'potential' | 'valueAsc' | 'valueDesc' | 'ageAsc' | 'ageDesc' | 'costbenefit' | 'wage';
 
@@ -99,6 +99,8 @@ export function TransfersScreen({ initialTab }: { initialTab?: string }) {
   const pendingOffers = world.incomingOffers.filter((o) => o.status === 'pending');
   const mySquad = useMemo(() => squadOf(world, career!.clubId), [world, career]);
   const inquiries = world.inquiries.filter((i) => i.sellerClubId !== career!.clubId);
+  const squadInquiries = world.squadInquiries.filter((i) => world.players[i.playerId]?.clubId === career!.clubId);
+  const squadInqPending = squadInquiries.filter((i) => i.status === 'pendente').length;
 
   return (
     <div className="space-y-4 animate-fadeUp">
@@ -187,7 +189,8 @@ export function TransfersScreen({ initialTab }: { initialTab?: string }) {
           { id: 'watch', label: `Observados (${shortlist.length})` },
           { id: 'neg', label: `Negociações (${negs.length})` },
           { id: 'offers', label: `Propostas (${pendingOffers.length})` },
-          { id: 'inquiries', label: `🔎 Sondagens (${inquiries.length})` },
+          { id: 'sond-recebidas', label: `📞 Recebidas (${squadInqPending})` },
+          { id: 'inquiries', label: `🔎 Enviadas (${inquiries.length})` },
           { id: 'sell', label: `Vender (${mySquad.length})` },
           { id: 'log', label: 'Registro' },
         ]}
@@ -419,6 +422,10 @@ export function TransfersScreen({ initialTab }: { initialTab?: string }) {
         <IncomingOffersPanel />
       )}
 
+      {tab === 'sond-recebidas' && (
+        <SquadInquiriesPanel />
+      )}
+
       {tab === 'inquiries' && (
         <div className="card p-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">🔎 Sondagens enviadas</p>
@@ -502,6 +509,66 @@ export function TransfersScreen({ initialTab }: { initialTab?: string }) {
       )}
 
       {view && <PlayerMarketModal player={view} onClose={() => setView(null)} />}
+    </div>
+  );
+}
+
+function SquadInquiriesPanel() {
+  const { career, touch, navigate } = useGame();
+  const world = career!.world;
+  const list = world.squadInquiries.filter((i) => world.players[i.playerId]?.clubId === career!.clubId);
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 px-1">📞 Sondagens recebidas — clubes perguntaram pelos seus jogadores</p>
+      {list.length === 0 ? (
+        <div className="card p-4">
+          <Empty icon="📞" title="Nenhuma sondagem recebida" subtitle="Quando outro clube demonstrar interesse, a sondagem aparece aqui para você responder: aberto a negociar, só por valor alto ou não vende." />
+        </div>
+      ) : (
+        list.map((inq) => {
+          const p = world.players[inq.playerId];
+          if (!p) return null;
+          const club = world.clubs[inq.clubId];
+          const pending = inq.status === 'pendente';
+          return (
+            <div key={inq.id} className={`rounded-lg border p-3 ${pending ? 'border-accent/40 bg-accent/5' : 'border-surface-700 bg-surface-800/40'}`}>
+              <div className="flex items-center gap-3">
+                <button onClick={() => navigate(`player:${p.id}`)} title="Ver jogador">
+                  <PlayerAvatar player={p} size={38} />
+                </button>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-200 truncate">{p.firstName} {p.lastName} <span className="text-slate-500 font-normal">· {club?.name ?? '—'}</span></p>
+                  <p className="text-[11px] text-slate-400">
+                    {squadInquiryIcon(inq.status)} {SQUAD_INQUIRY_LABEL[inq.status]}
+                    {inq.note ? ` — ${inq.note}` : ''}
+                    {inq.status === 'so-alta' && inq.minFee > 0 && <span className="text-gold"> (mín. {fmtMoney(inq.minFee)})</span>}
+                  </p>
+                </div>
+                <span className="text-[10px] text-slate-500 shrink-0">{formatDateBR(inq.date)}</span>
+              </div>
+              {pending ? (
+                <div className="flex flex-wrap gap-2 mt-2.5">
+                  <button
+                    onClick={() => { respondSquadInquiry(world, career!, inq.id, 'aberto'); touch(); }}
+                    className="btn-primary !px-3 !py-1.5 text-xs"
+                  >🟢 Aberto a negociar</button>
+                  <button
+                    onClick={() => { respondSquadInquiry(world, career!, inq.id, 'so-alta'); touch(); }}
+                    className="btn-secondary !px-3 !py-1.5 text-xs"
+                  >🟡 Só por valor alto</button>
+                  <button
+                    onClick={() => { respondSquadInquiry(world, career!, inq.id, 'nao-vende'); touch(); }}
+                    className="btn-ghost !px-3 !py-1.5 text-xs"
+                  >🟠 Não vende</button>
+                </div>
+              ) : (
+                <p className="text-[10px] text-slate-500 mt-2">📋 Resposta registrada em {inq.responseDate ? formatDateBR(inq.responseDate) : '—'} · o mercado foi informado</p>
+              )}
+            </div>
+          );
+        })
+      )}
     </div>
   );
 }
