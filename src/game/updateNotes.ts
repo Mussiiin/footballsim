@@ -34,13 +34,28 @@ export interface UpdateNoteVersion {
 }
 
 /** Versão do build atual do jogo (a mais recente disponível). */
-export const GAME_VERSION = '1.8.13';
+export const GAME_VERSION = '1.8.14';
 
 /** Versão "instalada" padrão de quem nunca passou por uma atualização. */
 const DEFAULT_APPLIED_VERSION = '1.4.2';
 
 /** Histórico completo de versões (mais recente primeiro). */
 export const UPDATE_HISTORY: UpdateNoteVersion[] = [
+  {
+    version: '1.8.14',
+    title: 'Navegação do jogo, Mensagens e notificações, Mercado de trans…',
+    date: '17/08/2026',
+    required: false,
+    newFeatures: [
+      { title: 'Navegação do jogo, Mensagens e notificações, Mercado de trans…', description: 'src/App.tsx: Navegação do jogo. src/game/messages.ts: Mensagens e notificações. src/game/negotiation.ts: Mercado de transferências. src/game/transfers.ts: Mercado de transferências.…' },
+    ],
+    improvements: [
+    ],
+    bugFixes: [
+    ],
+    football: [
+    ],
+  },
   {
     version: '1.8.13',
     title: 'Mercado de transferências, Simulação de partidas, Mecânicas d…',
