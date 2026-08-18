@@ -34,6 +34,7 @@ function migrateCareer(c: Career): Career {
     sq.responseDate = sq.responseDate ?? null;
     sq.note = sq.note ?? null;
     sq.minFee = sq.minFee ?? 0;
+    sq.followUpDate = sq.followUpDate ?? null;
   }
   if (!w.incomingOffers) w.incomingOffers = [];
   for (const o of w.incomingOffers) {

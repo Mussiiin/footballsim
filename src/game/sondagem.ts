@@ -4,12 +4,13 @@
 // janela fechada. A sondagem NÃO é proposta nem transferência: o
 // clube vendedor responde se está (ou não) disposto a negociar.
 // ------------------------------------------------------------
-import { World, Career, Player, Inquiry, InquiryStatus, SquadInquiry, SquadInquiryStatus } from '../lib/types';
+import { World, Career, Player, Inquiry, InquiryStatus, SquadInquiry, SquadInquiryStatus, PlayerTalk, TalkTopic } from '../lib/types';
 import { RNG, hashString } from '../lib/rng';
 import { isVitalPlayer } from './transfers';
 import { marketAnalysis } from './negotiation';
-import { pushInbox } from './messages';
-import { addNews } from './news';
+import { pushInbox, pushTalkMessage } from './messages';
+import { notify, addNews } from './news';
+import { clamp } from '../lib/format';
 import { daysBetween, addDays } from '../lib/date';
 
 let inquiryCounter = 0;
@@ -60,6 +61,7 @@ export function openSquadInquiry(world: World, playerId: string, clubId: string)
     responseDate: null,
     note: null,
     minFee: 0,
+    followUpDate: null,
   };
   world.squadInquiries.unshift(inq);
   if (world.squadInquiries.length > 100) world.squadInquiries.pop();
@@ -95,9 +97,47 @@ export function respondSquadInquiry(world: World, career: Career, inquiryId: str
   } else if (status === 'nao-vende') {
     inq.note = `Registramos: não pretendemos vender ${name} neste momento. O mercado foi informado.`;
     world.offerCooldowns[inq.playerId] = addDays(world.date, 35 + Math.floor(Math.random() * 10));
+    // consequência: jogador que pediu para sair se sente impedido → reclama
+    if (p && p.transferRequested && !Object.values(world.playerTalks).some((t) => t.playerId === p.id && t.active)) {
+      const talk: PlayerTalk = {
+        id: `talk${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`,
+        playerId: p.id,
+        topic: 'exit',
+        line: `Soube que o ${club?.name ?? 'clube'} queria me contratar e o clube recusou. Eu pedi para sair — por que me impedem?`,
+        context: `Pedido de saída · moral ${p.morale}% · satisfação ${p.happiness}%.`,
+        options: [
+          { id: 'listen', label: 'Vou ouvir propostas por você' },
+          { id: 'stay', label: 'Você é importante — quero que fique' },
+          { id: 'ask', label: 'Me dê mais uma chance de te convencer' },
+        ],
+        createdAt: world.date,
+        active: true,
+        initiatedBy: 'player',
+      };
+      world.playerTalks[talk.id] = talk;
+      pushTalkMessage(world, career, talk, `"${talk.line.slice(0, 90)}${talk.line.length > 90 ? '…' : ''}"`);
+      p.happiness = clamp(p.happiness - 6, 1, 100);
+    }
   } else {
-    inq.note = `Estamos abertos a negociar ${name}. ${club?.name ?? 'O clube'} pode voltar com uma proposta.`;
+    inq.note = `Estamos abertos a negociar ${name}. ${club?.name ?? 'O clube'} deve voltar com uma proposta em breve.`;
     world.offerCooldowns[inq.playerId] = addDays(world.date, 3 + Math.floor(Math.random() * 5));
+    // o clube que sondou volta com proposta oficial garantida em 2-5 dias
+    inq.followUpDate = addDays(world.date, 2 + Math.floor(Math.random() * 4));
+    // consequência: quem queria sair fica satisfeito com a porta aberta
+    if (p && p.transferRequested) {
+      p.morale = clamp(p.morale + 8, 1, 100);
+      p.happiness = clamp(p.happiness + 5, 1, 100);
+      pushInbox(world, career, {
+        playerId: p.id,
+        senderName: `${p.firstName} ${p.lastName}`,
+        title: 'Porta de saída aberta',
+        preview: `Fico feliz que o clube esteja aberto a negociar. Vou aguardar as propostas.`,
+        category: 'squad',
+        priority: 'low',
+        link: `talk:${p.id}`,
+      });
+      notify(career, `💬 ${p.firstName} ${p.lastName} ficou satisfeito por estar aberto a negociá-lo.`, 'info', '💬', `talk:${p.id}`);
+    }
   }
 
   pushInbox(world, career, {

@@ -2114,75 +2114,135 @@ export function generateIncomingOffers(world: World, career: Career | null, rng:
     }
 
     // 💰 proposta oficial
-    const price = sellingPrice(world, target, userClub);
-    if (price < 300_000) continue; // jogador sem valor de mercado
-    const [lo, hi] = chosen.score >= 85 ? [1.1, 1.45] : chosen.score >= 65 ? [0.95, 1.25] : chosen.score >= 45 ? [0.8, 1.1] : [0.7, 0.95];
-    let fee = Math.round((price * rng.float(lo, hi)) / 1e4) * 1e4;
+    if (makeOfficialProposal(world, career, rng, target, club, chosen.score, userClub)) made++;
+  }
+}
 
-    // resposta registrada do treinador orienta as propostas futuras
-    const lastAnswer = squadInquiryForPlayer(world, target.id);
-    if (lastAnswer?.status === 'nao-vende' && lastAnswer.responseDate && daysBetween(lastAnswer.responseDate, world.date) < 45) continue;
-    if (lastAnswer?.status === 'so-alta' && lastAnswer.minFee > 0 && fee < lastAnswer.minFee) {
-      // o clube tenta pagar o mínimo sinalizado (se quiser muito) ou desiste
-      const ok = rng.chance(Math.min(0.5, Math.max(0.1, fee / lastAnswer.minFee)));
-      if (!ok) continue;
-      fee = lastAnswer.minFee;
-    }
-    const needMult = divisionOf(club) < divisionOf(userClub) ? 1.8 : 1.35;
-    if (club.balance < fee * needMult) continue; // comprador sem condições
+/**
+ * Cria e registra uma proposta oficial de um clube por um jogador do nosso
+ * elenco (valor coerente com o mercado, bônus, % de futura venda, parcelas).
+ * Respeita a resposta registrada do treinador ('nao-vende' bloqueia por 45
+ * dias; 'so-alta' exige no mínimo o valor sinalizado). Retorna true se criou.
+ */
+function makeOfficialProposal(
+  world: World, career: Career, rng: RNG, target: Player, club: Club, score: number, userClub: Club,
+): boolean {
+  const price = sellingPrice(world, target, userClub);
+  if (price < 300_000) return false; // jogador sem valor de mercado
+  const [lo, hi] = score >= 85 ? [1.1, 1.45] : score >= 65 ? [0.95, 1.25] : score >= 45 ? [0.8, 1.1] : [0.7, 0.95];
+  let fee = Math.round((price * rng.float(lo, hi)) / 1e4) * 1e4;
 
-    const sellOn = divisionOf(club) > divisionOf(userClub) && rng.chance(0.25) ? rng.pick([10, 15]) : 0;
-    const bonus = rng.chance(0.35) ? Math.round(fee * rng.float(0.05, 0.12)) : 0;
-    const installments = rng.chance(0.3) ? rng.int(2, 4) : 1;
-    const hiddenMax = Math.round(price * (chosen.score >= 85 ? rng.float(1.2, 1.3) : chosen.score >= 60 ? rng.float(1.08, 1.18) : rng.float(1.0, 1.08)));
+  // resposta registrada do treinador orienta as propostas futuras
+  const lastAnswer = squadInquiryForPlayer(world, target.id);
+  if (lastAnswer?.status === 'nao-vende' && lastAnswer.responseDate && daysBetween(lastAnswer.responseDate, world.date) < 45) return false;
+  if (lastAnswer?.status === 'so-alta' && lastAnswer.minFee > 0 && fee < lastAnswer.minFee) {
+    // o clube tenta pagar o mínimo sinalizado (se quiser muito) ou desiste
+    const ok = rng.chance(Math.min(0.5, Math.max(0.1, fee / lastAnswer.minFee)));
+    if (!ok) return false;
+    fee = lastAnswer.minFee;
+  }
+  const needMult = divisionOf(club) < divisionOf(userClub) ? 1.8 : 1.35;
+  if (club.balance < fee * needMult) return false; // comprador sem condições
 
-    const offer: IncomingOffer = {
-      id: `io${incomingOfferCounter++}`,
-      playerId: target.id,
+  const sellOn = divisionOf(club) > divisionOf(userClub) && rng.chance(0.25) ? rng.pick([10, 15]) : 0;
+  const bonus = rng.chance(0.35) ? Math.round(fee * rng.float(0.05, 0.12)) : 0;
+  const installments = rng.chance(0.3) ? rng.int(2, 4) : 1;
+  const hiddenMax = Math.round(price * (score >= 85 ? rng.float(1.2, 1.3) : score >= 60 ? rng.float(1.08, 1.18) : rng.float(1.0, 1.08)));
+
+  const offer: IncomingOffer = {
+    id: `io${incomingOfferCounter++}`,
+    playerId: target.id,
+    clubId: club.id,
+    fee, bonus, sellOnPct: sellOn, installments,
+    status: 'pending',
+    createdAt: world.date,
+    expiresAt: addDays(world.date, rng.int(4, 6)),
+    rounds: 0,
+    mood: '🙂 Satisfeito',
+    hiddenMax,
+    messages: [],
+    playerWantsOut: target.transferRequested,
+  };
+  const clubLine = rng.pick([
+    `O ${club.name} tem interesse em ${target.firstName} e apresenta uma proposta.`,
+    `Estamos reconstruindo o elenco e ${target.firstName} é exatamente o que precisamos.`,
+    `O ${club.name} quer reforçar a posição e vê ${target.firstName} como alvo.`,
+  ]);
+  const addonsTxt = `${bonus > 0 ? ` + €${(bonus / 1e6).toFixed(1)}M em bônus` : ''}${sellOn > 0 ? `, mantendo ${sellOn}% de futura venda para vocês` : ''}${installments > 1 ? `, em ${installments} parcelas` : ''}`;
+  offer.messages.push({
+    id: uid('im'), from: 'club',
+    text: `${clubLine} Oferecemos €${(fee / 1e6).toFixed(1)}M${addonsTxt}.`, date: world.date, mood: '🙂 Satisfeito', actor: club.name,
+  });
+  const officer = career.recruitment;
+  offer.messages.push({
+    id: uid('im'), from: 'officer',
+    text: `${officer.name.split(' ')[0]} trouxe a proposta: ${target.firstName} ${target.lastName} está avaliado em €${(price / 1e6).toFixed(1)}M e o ${club.shortName} oferece €${(fee / 1e6).toFixed(1)}M${addonsTxt}. O que você decide?`,
+    date: world.date, actor: officer.name.split(' ')[0],
+  });
+  world.incomingOffers.unshift(offer);
+  if (world.incomingOffers.length > 80) world.incomingOffers.pop();
+  pushOfferMessage(world, career, club.shortName, target.id, fee);
+
+  if (fee >= 15_000_000) {
+    addNews(world, {
+      date: world.date,
+      title: `🔥 Interesse: ${club.shortName} faz proposta de €${(fee / 1e6).toFixed(1)}M por ${target.firstName} ${target.lastName}`,
+      subtitle: `O ${club.tier.toLowerCase()} ${club.name} tenta tirar o ${POSITION_LABELS[target.position].toLowerCase()} de ${overallOf(target)} de overall do ${userClub.shortName}.`,
+      category: 'Transferências',
+      importance: fee >= 30_000_000 ? 80 : 70,
       clubId: club.id,
-      fee, bonus, sellOnPct: sellOn, installments,
-      status: 'pending',
-      createdAt: world.date,
-      expiresAt: addDays(world.date, rng.int(4, 6)),
-      rounds: 0,
-      mood: '🙂 Satisfeito',
-      hiddenMax,
-      messages: [],
-      playerWantsOut: target.transferRequested,
-    };
-    const clubLine = rng.pick([
-      `O ${club.name} tem interesse em ${target.firstName} e apresenta uma proposta.`,
-      `Estamos reconstruindo o elenco e ${target.firstName} é exatamente o que precisamos.`,
-      `O ${club.name} quer reforçar a posição e vê ${target.firstName} como alvo.`,
-    ]);
-    const addonsTxt = `${bonus > 0 ? ` + €${(bonus / 1e6).toFixed(1)}M em bônus` : ''}${sellOn > 0 ? `, mantendo ${sellOn}% de futura venda para vocês` : ''}${installments > 1 ? `, em ${installments} parcelas` : ''}`;
-    offer.messages.push({
-      id: uid('im'), from: 'club',
-      text: `${clubLine} Oferecemos €${(fee / 1e6).toFixed(1)}M${addonsTxt}.`, date: world.date, mood: '🙂 Satisfeito', actor: club.name,
     });
-    const officer = career.recruitment;
-    offer.messages.push({
-      id: uid('im'), from: 'officer',
-      text: `${officer.name.split(' ')[0]} trouxe a proposta: ${target.firstName} ${target.lastName} está avaliado em €${(price / 1e6).toFixed(1)}M e o ${club.shortName} oferece €${(fee / 1e6).toFixed(1)}M${addonsTxt}. O que você decide?`,
-      date: world.date, actor: officer.name.split(' ')[0],
-    });
-    world.incomingOffers.unshift(offer);
-    if (world.incomingOffers.length > 80) world.incomingOffers.pop();
-    pushOfferMessage(world, career, club.shortName, target.id, fee);
+  }
+  notify(career, `📩 ${club.shortName} fez uma proposta de €${(fee / 1e6).toFixed(1)}M por ${target.firstName} ${target.lastName}.`, 'info', '📩', 'transfers');
+  setOfferCooldown(world, target.id, cooldownFor(score, true));
+  return true;
+}
 
-    if (fee >= 15_000_000) {
-      addNews(world, {
-        date: world.date,
-        title: `🔥 Interesse: ${club.shortName} faz proposta de €${(fee / 1e6).toFixed(1)}M por ${target.firstName} ${target.lastName}`,
-        subtitle: `O ${club.tier.toLowerCase()} ${club.name} tenta tirar o ${POSITION_LABELS[target.position].toLowerCase()} de ${overallOf(target)} de overall do ${userClub.shortName}.`,
-        category: 'Transferências',
-        importance: fee >= 30_000_000 ? 80 : 70,
-        clubId: club.id,
-      });
+/**
+ * Processa os follow-ups garantidos: quando o treinador responde 'Aberto a
+ * negociar', o clube que sondou volta com proposta oficial em 2-5 dias (em vez
+ * de depender só do sorteio diário). Desiste após 7 dias se não conseguir.
+ */
+export function tickFollowUpProposals(world: World, career: Career | null, rng: RNG): void {
+  if (!career) return;
+  const userClub = world.clubs[career.clubId];
+  if (!userClub) return;
+  for (const inq of world.squadInquiries) {
+    if (inq.status !== 'aberto' || !inq.followUpDate || inq.followUpDate > world.date) continue;
+    const target = world.players[inq.playerId];
+    if (!target || target.clubId !== career.clubId || target.status !== 'active') {
+      inq.followUpDate = null;
+      continue;
     }
-    notify(career, `📩 ${club.shortName} fez uma proposta de €${(fee / 1e6).toFixed(1)}M por ${target.firstName} ${target.lastName}.`, 'info', '📩', 'transfers');
-    setOfferCooldown(world, target.id, cooldownFor(chosen.score, true));
-    made++;
+    // já tem proposta em aberto pelo jogador (nossa ou de outro clube)? não duplica
+    if (world.incomingOffers.some((o) => o.playerId === target.id && o.status === 'pending')) {
+      inq.followUpDate = null;
+      continue;
+    }
+    const club = world.clubs[inq.clubId];
+    if (!club || club.isUserControlled) {
+      inq.followUpDate = null;
+      continue;
+    }
+    // proposta oficial só entra com a janela aberta — fora dela o clube aguarda
+    if (!isInTransferWindow(world, world.date)) continue;
+    let done = makeOfficialProposal(world, career, rng, target, club, 68, userClub);
+    if (!done) {
+      // o clube que sondou não conseguiu (ex.: orçamento) — outro clube compatível
+      // com poder financeiro assume o interesse e a proposta sai mesmo assim
+      const price = sellingPrice(world, target, userClub);
+      const need = price * 0.95 * 1.35;
+      const others = Object.values(world.clubs)
+        .filter((c) => !c.isUserControlled && c.id !== club.id && c.balance >= need)
+        .sort((a, b) => b.balance - a.balance)
+        .slice(0, 6);
+      for (const c of others) {
+        if (makeOfficialProposal(world, career, rng, target, c, 68, userClub)) { done = true; break; }
+      }
+    }
+    if (done || daysBetween(inq.responseDate ?? world.date, world.date) > 7) {
+      inq.followUpDate = null; // proposta feita ou desistiu (jogador sem mercado)
+    }
   }
 }
 

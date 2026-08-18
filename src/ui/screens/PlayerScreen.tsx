@@ -8,6 +8,7 @@ import { overallOf } from '../../game/overall';
 import { computeInterest } from '../../game/negotiation';
 import { talkHistoryFor, openPlayerConversation } from '../../game/messages';
 import { talkTopicLabel } from '../../game/playerTalks';
+import { SQUAD_INQUIRY_LABEL, squadInquiryIcon } from '../../game/sondagem';
 import { Player, PlayerAttributes } from '../../lib/types';
 import { ArrowLeft } from 'lucide-react';
 
@@ -218,6 +219,33 @@ export function PlayerScreen({ playerId }: { playerId: string }) {
             ))}
           </div>
         )}
+      </div>
+
+      {/* sondagens recebidas */}
+      <div className="card p-5">
+        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">📞 Sondagens recebidas</p>
+        {(() => {
+          const list = career.world.squadInquiries.filter((i) => i.playerId === p.id);
+          if (list.length === 0) {
+            return <p className="text-sm text-slate-500">Nenhum clube sondou este jogador ainda.</p>;
+          }
+          return (
+            <div className="space-y-1.5">
+              {list.map((i) => {
+                const inqClub = i.clubId ? career.world.clubs[i.clubId] : null;
+                return (
+                  <div key={i.id} className="flex items-start gap-2 py-1.5 border-b border-surface-700/40 last:border-0">
+                    <span className="text-[10px] text-slate-500 shrink-0 mt-0.5">{formatDateBR(i.date)}</span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-sky-400 shrink-0 mt-0.5">{inqClub?.shortName ?? '—'}</span>
+                    <span className="text-[10px] shrink-0 mt-0.5">{squadInquiryIcon(i.status)} {SQUAD_INQUIRY_LABEL[i.status]}</span>
+                    <p className="text-xs text-slate-400">{i.note ?? ''}</p>
+                    {i.status === 'so-alta' && i.minFee > 0 && <span className="text-[10px] text-gold shrink-0">mín. {fmtMoney(i.minFee)}</span>}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
 
       {/* histórico */}

@@ -9,7 +9,7 @@ import { refreshClubCaches } from './overall';
 import { monthlyFinancesTick } from './finances';
 import { aiBoardEvaluation, aiContractRenewals } from './ai';
 import { aiTransferActivity, executeTransfer, squadOf } from './transfers';
-import { tickNegotiations, aiMarketDeals, generateIncomingOffers, tickIncomingOffers, checkPromises } from './negotiation';
+import { tickNegotiations, aiMarketDeals, generateIncomingOffers, tickFollowUpProposals, tickIncomingOffers, checkPromises } from './negotiation';
 import { tickArrivals } from './transfers';
 import { tickInquiries } from './sondagem';
 import { tickStadium } from './stadium';
@@ -195,6 +195,7 @@ export function simulateOneDay(world: World, career: Career | null, difficulty: 
     result.transferActivity = n;
   }
   tickIncomingOffers(world, career, dayRng);
+  tickFollowUpProposals(world, career, dayRng);
 
   // contratações em trânsito: documentação, viagem, exames e registro
   tickArrivals(world, career);

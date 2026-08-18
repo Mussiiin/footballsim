@@ -1011,6 +1011,8 @@ export interface SquadInquiry {
   note: string | null;
   /** valor mínimo aceito quando a resposta for 'so-alta' (só aceita proposta alta). */
   minFee: number;
+  /** data em que o clube interessado volta com proposta oficial (resposta 'aberto'). */
+  followUpDate: string | null;
 }
 
 /** Sondagem enviada a outro clube (mercado vivo mesmo com a janela fechada). */
